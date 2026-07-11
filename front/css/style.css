@@ -1,0 +1,463 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #f5f5f5; }
+
+/* ===== Модальное окно ===== */
+.modal {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    backdrop-filter: blur(4px);
+}
+
+.modal-content {
+    background: white;
+    border-radius: 16px;
+    padding: 40px;
+    width: 420px;
+    max-width: 95%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+
+.modal-header {
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+.modal-header h2 {
+    color: #1a1a2e;
+    font-size: 26px;
+}
+
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    font-weight: 600;
+    font-size: 13px;
+    color: #333;
+    margin-bottom: 5px;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: border-color 0.2s;
+}
+
+.form-group input:focus {
+    border-color: #2980b9;
+    outline: none;
+}
+
+.checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.checkbox-group label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: normal;
+    cursor: pointer;
+}
+
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    width: 100%;
+    background: #2980b9;
+    color: white;
+    padding: 12px;
+    font-size: 16px;
+}
+
+.btn-primary:hover {
+    background: #2471a3;
+    transform: translateY(-1px);
+}
+
+.btn-danger {
+    background: #e74c3c;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #c0392b;
+}
+
+.btn-success {
+    background: #27ae60;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #219a52;
+}
+
+.error-message {
+    color: #e74c3c;
+    font-size: 13px;
+    margin-top: 10px;
+    text-align: center;
+    min-height: 20px;
+}
+
+/* ===== Шапка ===== */
+.header {
+    background: #1a1a2e;
+    color: white;
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.header h1 { font-size: 22px; margin: 0; }
+.header p { font-size: 13px; opacity: 0.8; margin: 0; }
+
+.controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.controls button {
+    background: #e74c3c;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.2s;
+}
+
+.controls button:hover { background: #c0392b; }
+.controls button.clear { background: #7f8c8d; }
+.controls button.clear:hover { background: #636e72; }
+.controls button.primary { background: #2980b9; }
+.controls button.primary:hover { background: #2471a3; }
+.controls button.logout-btn { background: #e67e22; }
+.controls button.logout-btn:hover { background: #d35400; }
+
+/* ===== Админ-панель ===== */
+.admin-panel {
+    background: #2c3e50;
+    color: white;
+    padding: 10px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    border-bottom: 3px solid #f1c40f;
+}
+
+.admin-tools {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.admin-tools .btn {
+    padding: 6px 14px;
+    font-size: 12px;
+}
+
+.admin-tools .admin-toggle {
+    background: #f1c40f;
+    color: #1a1a2e;
+}
+
+.admin-tools .admin-toggle:hover {
+    background: #f39c12;
+}
+
+.admin-tools .admin-hint {
+    font-size: 12px;
+    color: #bdc3c7;
+    padding: 4px 10px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 12px;
+}
+
+.admin-status {
+    font-size: 12px;
+    color: #2ecc71;
+    padding: 4px 12px;
+    background: rgba(46, 204, 113, 0.2);
+    border-radius: 12px;
+}
+
+/* ===== Карта и статистика ===== */
+#map { height: calc(100vh - 200px); width: 100%; }
+
+.stats {
+    background: #f0f0f0;
+    padding: 8px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid #ccc;
+    font-size: 13px;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.stats .count { font-weight: bold; color: #c0392b; }
+.stats .distance {
+    font-weight: bold;
+    color: #2980b9;
+}
+
+/* ===== Легенда ===== */
+.legend {
+    position: absolute;
+    bottom: 30px;
+    right: 30px;
+    background: white;
+    padding: 12px 18px;
+    border-radius: 8px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.3);
+    z-index: 1000;
+    font-size: 13px;
+    min-width: 150px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    margin: 4px 0;
+}
+
+.legend-line {
+    width: 30px;
+    height: 4px;
+    margin-right: 10px;
+    border-radius: 2px;
+}
+
+.legend-line.road { background: #555; }
+.legend-line.route { background: #e74c3c; height: 5px; }
+
+.legend-marker {
+    width: 12px;
+    height: 12px;
+    background: #e74c3c;
+    border-radius: 50%;
+    border: 2px solid #c0392b;
+    margin-right: 10px;
+}
+
+.legend-marker.route-point {
+    background: #f1c40f;
+    border-color: #f39c12;
+    width: 14px;
+    height: 14px;
+}
+
+.legend-marker.base-station {
+    background: #9b59b6;
+    border-color: #8e44ad;
+    width: 14px;
+    height: 14px;
+    box-shadow: 0 0 8px rgba(155, 89, 182, 0.5);
+}
+
+/* ===== Toast уведомления ===== */
+.toast {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.8);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    z-index: 3000;
+    font-size: 14px;
+    display: none;
+    max-width: 90%;
+}
+
+.toast.show {
+    display: block;
+    animation: fadeIn 0.3s;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ===== Popup станции ===== */
+.station-popup {
+    min-width: 200px;
+    padding: 5px;
+}
+
+.station-popup h3 {
+    margin: 0 0 8px 0;
+    color: #1a1a2e;
+    font-size: 17px;
+}
+
+.station-popup hr {
+    margin: 6px 0;
+    border: none;
+    border-top: 1px solid #ddd;
+}
+
+.station-popup .field {
+    margin: 4px 0;
+    font-size: 13px;
+}
+
+.station-popup .field strong { color: #555; }
+
+.station-popup .badge {
+    display: inline-block;
+    background: #e74c3c;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    margin-top: 4px;
+}
+
+.station-popup .badge.base-badge {
+    background: #9b59b6;
+}
+
+.station-popup .btn {
+    background: #2980b9;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 6px;
+    width: 100%;
+    font-size: 13px;
+}
+
+.station-popup .btn:hover { background: #2471a3; }
+.station-popup .btn.route-btn { background: #27ae60; }
+.station-popup .btn.route-btn:hover { background: #219a52; }
+.station-popup .btn.base-btn { background: #9b59b6; }
+.station-popup .btn.base-btn:hover { background: #8e44ad; }
+.station-popup .btn.base-btn.active { background: #e74c3c; }
+.station-popup .btn.base-btn.active:hover { background: #c0392b; }
+
+/* ===== Кружок с вагонами (на карте) ===== */
+.wagon-circle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: white;
+    font-size: 14px;
+    border: 3px solid rgba(255,255,255,0.8);
+    box-shadow: 0 0 15px rgba(0,0,0,0.3);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.wagon-circle:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 25px rgba(0,0,0,0.4);
+}
+
+/* ===== Поиск ===== */
+.search-box {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.search-box input {
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    font-size: 13px;
+    width: 200px;
+}
+
+/* ===== Загрузка ===== */
+.loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255,255,255,0.95);
+    padding: 30px 40px;
+    border-radius: 10px;
+    box-shadow: 0 0 30px rgba(0,0,0,0.5);
+    z-index: 2000;
+    text-align: center;
+}
+
+.loading .spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* ===== Distance info ===== */
+.distance-info {
+    background: #f8f9fa;
+    padding: 6px 12px;
+    border-radius: 4px;
+    display: inline-block;
+    margin: 0 5px;
+}
+
+.distance-info .value {
+    color: #2980b9;
+    font-weight: bold;
+}
+
+/* ===== Адаптив ===== */
+@media (max-width: 768px) {
+    .header h1 { font-size: 18px; }
+    .stats { font-size: 12px; }
+    .controls button { padding: 6px 12px; font-size: 12px; }
+    .legend { font-size: 12px; padding: 10px 14px; }
+    .search-box input { width: 120px; }
+    .modal-content { padding: 24px; width: 95%; }
+    .admin-panel { flex-direction: column; align-items: stretch; }
+    .admin-tools { justify-content: center; }
+}
