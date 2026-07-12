@@ -1,68 +1,25 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import json
-import math
-import heapq
-from collections import defaultdict
-import os
-from datetime import datetime
+from flask import Blueprint, request, jsonify, current_app
+from auth import authenticate, register_user
+from admin import load_admin_data, set_station_flag
+from graph_utils import haversine_distance, find_closest_node, dijkstra, reconstruct_path
+from data_loader import load_geojson
 
-app = Flask(__name__)
-CORS(app)
-
-ADMIN_DATA_FILE = 'data/admin_data.json'
+# Создаем один блюпринт для всех маршрутов
+bp = Blueprint('api', __name__, url_prefix='/api')
 
 
-def load_admin_data():
+# ==================== АУТЕНТИФИКАЦИЯ ====================
 
-    if os.path.exists(ADMIN_DATA_FILE):
-        try:
-            with open(ADMIN_DATA_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except:
-            return {'flags': {}, 'circles': []}
-    return {'flags': {}, 'circles': []}
-
-
-def save_admin_data(data):
-    os.makedirs(os.path.dirname(ADMIN_DATA_FILE), exist_ok=True)
-    with open(ADMIN_DATA_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-
-
-users_db = {
-    'admin': {
-        'password': 'admin123',
-        'role': 'admin',
-        'name': 'Администратор',
-        'email': 'admin@example.com'
-    },
-    'user': {
-        'password': 'user123',
-        'role': 'user',
-        'name': 'Пользователь',
-        'email': 'user@example.com'
-    }
-}
-
-# загрузка входа
-@app.route('/api/auth/login', methods=['POST'])
+@bp.route('/auth/login', methods=['POST'])
 def login():
-
+    """Вход в систему"""
     data = request.get_json()
     login = data.get('login', '').strip()
     password = data.get('password', '').strip()
 
-    if login in users_db and users_db[login]['password'] == password:
-        return jsonify({
-            'success': True,
-            'user': {
-                'login': login,
-                'role': users_db[login]['role'],
-                'name': users_db[login]['name']
-            }
-        })
+    result = authenticate(login, password)
+    if result:
+        return jsonify(result)
 
     if login and password:
         return jsonify({
@@ -79,51 +36,35 @@ def login():
         'error': 'Неверный логин или пароль'
     }), 401
 
-# регистрация
 
-@app.route('/api/auth/register', methods=['POST'])
+@bp.route('/auth/register', methods=['POST'])
 def register():
-
+    """Регистрация нового пользователя"""
     data = request.get_json()
     login = data.get('login', '').strip()
     password = data.get('password', '').strip()
     name = data.get('name', '').strip()
     email = data.get('email', '').strip()
 
-    if not login or not password:
-        return jsonify({
-            'success': False,
-            'error': 'Логин и пароль обязательны'
-        }), 400
+    result = register_user(login, password, name, email)
 
-    users_db[login] = {
-        'password': password,
-        'role': 'admin' if login == 'admin' else 'user',
-        'name': name or login,
-        'email': email or ''
-    }
+    if not result['success']:
+        return jsonify(result), 400
 
-    return jsonify({
-        'success': True,
-        'message': 'Регистрация успешна!',
-        'user': {
-            'login': login,
-            'role': users_db[login]['role'],
-            'name': users_db[login]['name']
-        }
-    })
+    return jsonify(result)
 
 
+# ==================== АДМИНИСТРИРОВАНИЕ ====================
 
-
-# подгрузка данных об админах
-@app.route('/api/admin/data', methods=['GET'])
+@bp.route('/admin/data', methods=['GET'])
 def get_admin_data():
+    """Получение административных данных"""
     return jsonify(load_admin_data())
 
-# опорные пункты
-@app.route('/api/admin/flags', methods=['POST'])
+
+@bp.route('/admin/flags', methods=['POST'])
 def set_flag():
+    """Установка флага опорной станции"""
     data = request.get_json()
     station_name = data.get('stationName')
     is_base = data.get('isBase', True)
@@ -131,158 +72,68 @@ def set_flag():
     if not station_name:
         return jsonify({'error': 'Не указана станция'}), 400
 
-    admin_data = load_admin_data()
-
-    if is_base:
-        admin_data['flags'][station_name] = True
-    else:
-        admin_data['flags'].pop(station_name, None)
-
-    save_admin_data(admin_data)
-    return jsonify({'success': True, 'flags': admin_data['flags']})
+    flags = set_station_flag(station_name, is_base)
+    return jsonify({'success': True, 'flags': flags})
 
 
-# загрузка джейсрнов с данными
-def load_geojson(filename):
-    try:
-        with open(filename, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        print(f"Файл {filename} не найден!")
-        return {"features": []}
+# ==================== СТАНЦИИ ====================
+
+@bp.route('/stations', methods=['GET'])
+def get_stations():
+    """Получение списка всех станций"""
+    station_data = current_app.config['STATION_DATA']
+    stations = []
+
+    for feature in station_data.get('features', []):
+        props = feature.get('properties', {})
+        coords = feature.get('geometry', {}).get('coordinates', [])
+        if coords:
+            stations.append({
+                'name': props.get('name', 'Без названия'),
+                'lat': coords[1],
+                'lon': coords[0],
+                'city': props.get('addr:city', 'Не указан'),
+                'branch': props.get('operator:branch', 'Горьковская ЖД'),
+                'type': props.get('railway', 'station')
+            })
+    return jsonify(stations)
 
 
-railway_data = load_geojson('railways.geojson')
-station_data = load_geojson('stations.geojson')
-print(f"Дорог: {len(railway_data.get('features', []))}")
-print(f"Станций: {len(station_data.get('features', []))}")
+@bp.route('/stations/search', methods=['GET'])
+def search_stations():
+    """Поиск станций по названию"""
+    query = request.args.get('q', '').strip()
+    if len(query) < 1:
+        return jsonify([])
 
-# рассчет маршрута километраж
-def haversine_distance(lat1, lon1, lat2, lon2):
-    R = 6371.0
-    lat1_rad = math.radians(lat1)
-    lon1_rad = math.radians(lon1)
-    lat2_rad = math.radians(lat2)
-    lon2_rad = math.radians(lon2)
-    dlat = lat2_rad - lat1_rad
-    dlon = lon2_rad - lon1_rad
-    a = math.sin(dlat / 2) ** 2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2) ** 2
-    c = 2 * math.asin(math.sqrt(a))
-    return R * c
+    station_data = current_app.config['STATION_DATA']
+    query_lower = query.lower()
+    results = []
 
-# расчет количества графов
-def build_graph(railway_data):
-    graph = defaultdict(dict)
-    node_coords = {}
-    node_id = 0
+    for feature in station_data.get('features', []):
+        props = feature.get('properties', {})
+        name = props.get('name', '')
+        if name and query_lower in name.lower():
+            coords = feature.get('geometry', {}).get('coordinates', [])
+            if coords:
+                results.append({
+                    'name': name,
+                    'lat': coords[1],
+                    'lon': coords[0],
+                    'city': props.get('addr:city', 'Не указан'),
+                    'branch': props.get('operator:branch', 'Горьковская ЖД'),
+                    'type': props.get('railway', 'station')
+                })
+                if len(results) >= 30:
+                    break
 
-    def get_node_id(lat, lon):
-        nonlocal node_id
-        key = f"{lat:.6f},{lon:.6f}"
-        if key not in node_coords:
-            node_coords[key] = {
-                'id': node_id,
-                'lat': lat,
-                'lon': lon
-            }
-            node_id += 1
-        return node_coords[key]['id']
-
-    for feature in railway_data.get('features', []):
-        geometry = feature.get('geometry')
-        if not geometry or geometry.get('type') != 'LineString':
-            continue
-
-        coords = geometry.get('coordinates', [])
-        for i in range(len(coords) - 1):
-            lon1, lat1 = coords[i]
-            lon2, lat2 = coords[i + 1]
-
-            id1 = get_node_id(lat1, lon1)
-            id2 = get_node_id(lat2, lon2)
-
-            dist = haversine_distance(lat1, lon1, lat2, lon2)
-
-            if dist < 5.0:
-                graph[id1][id2] = dist
-                graph[id2][id1] = dist
-
-    coords = {}
-    for key, data in node_coords.items():
-        coords[data['id']] = {
-            'lat': data['lat'],
-            'lon': data['lon']
-        }
-    return graph, coords
+    return jsonify(results)
 
 
-graph, node_coords = build_graph(railway_data)
+# ==================== ПОСТРОЕНИЕ МАРШРУТА ====================
 
-# поиск ближайшего узла
-def find_closest_node(lat, lon, node_coords, max_distance=15.0):
-    best_id = None
-    best_dist = float('inf')
-
-    for node_id, coords in node_coords.items():
-        dist = haversine_distance(lat, lon, coords['lat'], coords['lon'])
-        if dist < best_dist:
-            best_dist = dist
-            best_id = node_id
-
-    if best_dist > max_distance:
-        return None, best_dist
-
-    return best_id, best_dist
-
-# дейкстра
-def dijkstra(graph, start_id, end_id):
-    if start_id not in graph or end_id not in graph:
-        return None, None
-
-    distances = {node: float('inf') for node in graph}
-    previous = {node: None for node in graph}
-    distances[start_id] = 0
-
-    pq = [(0, start_id)]
-    visited = set()
-
-    while pq:
-        current_dist, current_id = heapq.heappop(pq)
-
-        if current_id in visited:
-            continue
-        visited.add(current_id)
-
-        if current_id == end_id:
-            break
-
-        for neighbor_id, weight in graph[current_id].items():
-            if neighbor_id in visited:
-                continue
-
-            new_dist = current_dist + weight
-            if new_dist < distances[neighbor_id]:
-                distances[neighbor_id] = new_dist
-                previous[neighbor_id] = current_id
-                heapq.heappush(pq, (new_dist, neighbor_id))
-
-    return previous, visited
-
-# построение пути маршрута
-def reconstruct_path(previous, start_id, end_id):
-    if end_id not in previous or previous[end_id] is None and start_id != end_id:
-        return None
-
-    path = []
-    current = end_id
-    while current is not None:
-        path.append(current)
-        current = previous[current]
-    path.reverse()
-    return path
-
-# поиск станции
-def find_station_by_name(name):
+def find_station_by_name(name, station_data):
+    """Поиск станции по названию"""
     name_normalized = name.lower().strip()
 
     for feature in station_data.get('features', []):
@@ -317,8 +168,9 @@ def find_station_by_name(name):
 
     return None
 
-# построение маршрута
-def build_route_sequential(points):
+
+def build_route_sequential(points, graph, node_coords):
+    """Последовательное построение маршрута"""
     if len(points) < 2:
         return None, {"error": "Нужно минимум 2 точки"}
 
@@ -425,56 +277,10 @@ def build_route_sequential(points):
 
     return full_path, debug_info
 
-# станции
-@app.route('/api/stations', methods=['GET'])
-def get_stations():
-    stations = []
-    for feature in station_data.get('features', []):
-        props = feature.get('properties', {})
-        coords = feature.get('geometry', {}).get('coordinates', [])
-        if coords:
-            stations.append({
-                'name': props.get('name', 'Без названия'),
-                'lat': coords[1],
-                'lon': coords[0],
-                'city': props.get('addr:city', 'Не указан'),
-                'branch': props.get('operator:branch', 'Горьковская ЖД'),
-                'type': props.get('railway', 'station')
-            })
-    return jsonify(stations)
 
-# просто поиск станций
-@app.route('/api/stations/search', methods=['GET'])
-def search_stations():
-    query = request.args.get('q', '').strip()
-    if len(query) < 1:
-        return jsonify([])
-
-    query_lower = query.lower()
-    results = []
-
-    for feature in station_data.get('features', []):
-        props = feature.get('properties', {})
-        name = props.get('name', '')
-        if name and query_lower in name.lower():
-            coords = feature.get('geometry', {}).get('coordinates', [])
-            if coords:
-                results.append({
-                    'name': name,
-                    'lat': coords[1],
-                    'lon': coords[0],
-                    'city': props.get('addr:city', 'Не указан'),
-                    'branch': props.get('operator:branch', 'Горьковская ЖД'),
-                    'type': props.get('railway', 'station')
-                })
-                if len(results) >= 30:
-                    break
-
-    return jsonify(results)
-
-# построить маршрут
-@app.route('/api/route', methods=['POST'])
+@bp.route('/route', methods=['POST'])
 def calculate_route():
+    """Построение маршрута по точкам"""
     try:
         data = request.get_json()
     except:
@@ -488,10 +294,14 @@ def calculate_route():
     if len(points) < 2:
         return jsonify({'error': 'Нужно минимум 2 точки'}), 400
 
+    station_data = current_app.config['STATION_DATA']
+    graph = current_app.config['GRAPH']
+    node_coords = current_app.config['NODE_COORDS']
+
     route_points = []
     for point in points:
         if 'name' in point:
-            station = find_station_by_name(point['name'])
+            station = find_station_by_name(point['name'], station_data)
             if station:
                 route_points.append(station)
             else:
@@ -526,7 +336,7 @@ def calculate_route():
         else:
             return jsonify({'error': 'Неверный формат точки'}), 400
 
-    path, debug_info = build_route_sequential(route_points)
+    path, debug_info = build_route_sequential(route_points, graph, node_coords)
 
     if path is None or len(path) < 2:
         error_msg = debug_info.get('warnings', ['Не удалось построить маршрут'])[0]
@@ -549,15 +359,56 @@ def calculate_route():
 
     return jsonify(result)
 
-# статус
-@app.route('/api/status', methods=['GET'])
+
+# ==================== СТАТУС ====================
+
+@bp.route('/status', methods=['GET'])
 def status():
+    """Проверка статуса сервера"""
+    station_data = current_app.config['STATION_DATA']
+    graph = current_app.config['GRAPH']
     return jsonify({
         'status': 'ok',
         'stations': len(station_data.get('features', [])),
         'graph_nodes': len(graph)
     })
 
+# ВАГОНЫ
 
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+@bp.route('/admin/wagons/all', methods=['GET'])
+def get_all_wagons():
+    """Получение всех опорных станций с историей вагонов"""
+    from admin import get_all_base_stations_with_wagons
+
+    stations = get_all_base_stations_with_wagons()
+    return jsonify(stations)
+
+
+@bp.route('/admin/wagons/add', methods=['POST'])
+def add_wagons():
+    """Добавление данных о вагонах"""
+    from admin import add_wagons_data
+
+    data = request.get_json()
+    station_name = data.get('stationName')
+    count = data.get('count')
+    date = data.get('date')
+
+    if not station_name or count is None:
+        return jsonify({'error': 'Не указана станция или количество вагонов'}), 400
+
+    try:
+        count = int(count)
+    except:
+        return jsonify({'error': 'Количество вагонов должно быть числом'}), 400
+
+    result = add_wagons_data(station_name, count, date)
+
+    if 'error' in result:
+        return jsonify(result), 400
+
+    return jsonify({
+        'success': True,
+        'station': station_name,
+        'data': result
+    })
