@@ -1,0 +1,34 @@
+# Виртуальное окружение
+venv/
+.venv/
+env/
+.env
+
+# Кеш Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Логи
+*.log
+*.tmp
+
+# Секреты
+*.pem
+*.key
+
+# Сборка
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Файлы ОС
+.DS_Store
+Thumbs.db
