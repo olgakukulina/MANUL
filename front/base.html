@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Горьковская железная дорога</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; }
+        .header {
+            background: #1a1a2e;
+            color: white;
+            padding: 15px 20px;
+            text-align: center;
+        }
+        .header h1 { margin: 0; font-size: 24px; }
+        .header p { margin: 5px 0 0 0; opacity: 0.8; font-size: 14px; }
+        #map { height: calc(100vh - 130px); width: 100%; }
+        .stats {
+            background: #f0f0f0;
+            padding: 10px 20px;
+            text-align: center;
+            border-bottom: 2px solid #ccc;
+            font-size: 14px;
+        }
+        .stats .count { font-weight: bold; color: #c0392b; }
+        .stats .road-count { font-weight: bold; color: #1a1a2e; }
+        .legend {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            background: white;
+            padding: 12px 18px;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.3);
+            z-index: 1000;
+            font-size: 13px;
+            min-width: 150px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 4px 0;
+        }
+        .legend-line {
+            width: 30px;
+            height: 4px;
+            background: black;
+            margin-right: 10px;
+            border-radius: 2px;
+        }
+        .legend-marker {
+            width: 12px;
+            height: 12px;
+            background: #e74c3c;
+            border-radius: 50%;
+            border: 2px solid #c0392b;
+            margin-right: 10px;
+        }
+        .legend-marker-halt {
+            width: 12px;
+            height: 12px;
+            background: #3498db;
+            border-radius: 50%;
+            border: 2px solid #2980b9;
+            margin-right: 10px;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255,255,255,0.95);
+            padding: 30px 40px;
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+            z-index: 2000;
+            text-align: center;
+        }
+        .loading .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .station-popup {
+            min-width: 200px;
+            padding: 5px;
+        }
+        .station-popup h3 {
+            margin: 0 0 8px 0;
+            color: #1a1a2e;
+            font-size: 17px;
+        }
+        .station-popup hr {
+            margin: 6px 0;
+            border: none;
+            border-top: 1px solid #ddd;
+        }
+        .station-popup .field {
+            margin: 4px 0;
+            font-size: 13px;
+        }
+        .station-popup .field strong {
+            color: #555;
+        }
+        .station-popup .badge {
+            display: inline-block;
+            background: #e74c3c;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            margin-top: 4px;
+        }
+        .station-popup .badge-halt {
+            background: #3498db;
+        }
+        .station-popup .btn {
+            background: #1a1a2e;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 6px;
+            width: 100%;
+            font-size: 13px;
+        }
+        .station-popup .btn:hover {
+            background: #2d2d5e;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>🚂 Горьковская железная дорога</h1>
+        <p>Все станции и пути филиала РЖД (по тегу branch="ГОР")</p>
+    </div>
+
+    <div class="stats" id="stats">
+        ⏳ Загрузка данных...
+    </div>
+
+    <div id="map">
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <h3>Загрузка данных...</h3>
+            <p style="color: #666; font-size: 14px;">Файлы: stations.geojson и railways.geojson</p>
+        </div>
+    </div>
+
+    <div class="legend">
+        <div class="legend-item">
+            <div class="legend-line"></div>
+            <span>Железные дороги (branch="ГОР")</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-marker"></div>
+            <span>Станции</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-marker-halt"></div>
+            <span>Остановочные пункты</span>
+        </div>
+        <div style="margin-top:8px; font-size:11px; color:#999;">
+            🖱️ Кликни на маркер для информации
+        </div>
+    </div>
+
+    <script>
+        // --- 1. СОЗДАЁМ КАРТУ ---
+        const map = L.map('map').setView([56.3, 43.9], 6.5);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+
+        // --- 2. ЗАГРУЖАЕМ ДАННЫЕ ---
+        async function loadData() {
+            try {
+                // Загружаем станции
+                const stationResponse = await fetch('stations.geojson');
+                if (!stationResponse.ok) {
+                    throw new Error('Файл stations.geojson не найден!');
+                }
+                const stationData = await stationResponse.json();
+
+                // Загружаем дороги
+                let railwayData = null;
+                try {
+                    const railwayResponse = await fetch('railways.geojson');
+                    if (railwayResponse.ok) {
+                        railwayData = await railwayResponse.json();
+                    }
+                } catch (e) {
+                    console.warn('Файл railways.geojson не загружен:', e);
+                }
+
+                // Скрываем загрузку
+                document.getElementById('loading').style.display = 'none';
+
+                let stationsCount = 0;
+                let haltCount = 0;
+                let railwaysCount = 0;
+
+                // --- 3. ОТОБРАЖАЕМ ДОРОГИ (ЧЁРНЫМ) ---
+                if (railwayData && railwayData.features) {
+                    railwayData.features.forEach(feature => {
+                        if (feature.geometry && feature.geometry.type === 'LineString') {
+                            const coords = feature.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                            L.polyline(coords, {
+                                color: 'black',
+                                weight: 3,
+                                opacity: 0.9,
+                                smoothFactor: 1
+                            }).addTo(map);
+                            railwaysCount++;
+                        }
+                    });
+                }
+
+                // --- 4. ОТОБРАЖАЕМ СТАНЦИИ ---
+                if (stationData.features) {
+                    stationData.features.forEach(feature => {
+                        if (feature.geometry && feature.geometry.type === 'Point') {
+                            const coords = [feature.geometry.coordinates[1], feature.geometry.coordinates[0]];
+                            const props = feature.properties || {};
+
+                            const railwayType = props.railway || 'station';
+                            const isHalt = railwayType === 'halt' || railwayType === 'stop';
+
+                            const markerColor = isHalt ? '#3498db' : '#e74c3c';
+                            const borderColor = isHalt ? '#2980b9' : '#c0392b';
+
+                            const marker = L.circleMarker(coords, {
+                                radius: isHalt ? 5 : 7,
+                                fillColor: markerColor,
+                                color: borderColor,
+                                weight: 2,
+                                opacity: 1,
+                                fillOpacity: 0.8
+                            });
+
+                            const name = props.name || 'Станция без названия';
+                            const city = props['addr:city'] || props['addr:town'] || 'Не указан';
+                            const branch = props['operator:branch'] || props.branch || 'Горьковская ЖД';
+                            const operator = props.operator || 'РЖД';
+
+                            const typeNames = {
+                                'station': 'Станция',
+                                'halt': 'Остановочный пункт',
+                                'stop': 'Остановка'
+                            };
+                            const typeDisplay = typeNames[railwayType] || 'Станция';
+                            const badgeClass = isHalt ? 'badge-halt' : '';
+
+                            marker.bindPopup(`
+                                <div class="station-popup">
+                                    <h3>${name}</h3>
+                                    <span class="badge ${badgeClass}">${typeDisplay}</span>
+                                    <hr>
+                                    <div class="field"><strong>📍 Город:</strong> ${city}</div>
+                                    <div class="field"><strong>🏛️ Филиал:</strong> ${branch}</div>
+                                    <div class="field"><strong>👤 Оператор:</strong> ${operator}</div>
+                                    <hr>
+                                    <button class="btn" onclick="alert(
+                                        '📋 ИНФОРМАЦИЯ О СТАНЦИИ\\n\\n' +
+                                        'Название: ${name.replace(/'/g, "\\'")}\\n' +
+                                        'Тип: ${typeDisplay}\\n' +
+                                        'Город: ${city.replace(/'/g, "\\'")}\\n' +
+                                        'Филиал: ${branch.replace(/'/g, "\\'")}\\n\\n' +
+                                        '📌 Здесь будет подробная информация:\\n' +
+                                        '• Количество путей\\n' +
+                                        '• Год открытия\\n' +
+                                        '• Фотографии\\n' +
+                                        '• И многое другое!'
+                                    )">
+                                        📋 Подробная информация →
+                                    </button>
+                                </div>
+                            `);
+
+                            marker.addTo(map);
+
+                            if (isHalt) {
+                                haltCount++;
+                            } else {
+                                stationsCount++;
+                            }
+                        }
+                    });
+                }
+
+                // --- 5. ОБНОВЛЯЕМ СТАТИСТИКУ ---
+                const total = stationsCount + haltCount;
+                document.getElementById('stats').innerHTML = `
+                    <strong style="color: #2e7d32;">✅ Загружено:</strong>
+                    <span class="count">${stationsCount}</span> станций,
+                    <span style="color: #2980b9; font-weight: bold;">${haltCount}</span> остановочных пунктов
+                    <span style="color: #666; margin-left: 20px;">|</span>
+                    <span class="road-count">${railwaysCount}</span> участков дорог
+                    <span style="color: #666; margin-left: 20px;">🏛️ Филиал: Горьковская ЖД</span>
+                    <span style="color: #999; margin-left: 15px; font-size:12px;">Всего: ${total}</span>
+                `;
+
+                console.log(`✅ Готово! Станций: ${stationsCount}, Остановок: ${haltCount}, Дорог: ${railwaysCount}`);
+
+            } catch (error) {
+                console.error('❌ Ошибка:', error);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('stats').innerHTML = `
+                    <strong style="color: red;">❌ Ошибка:</strong>
+                    <span style="color: #666; margin-left: 15px;">${error.message}</span>
+                    <br>
+                    <span style="color: #999; font-size: 12px;">
+                        Убедись, что файлы stations.geojson и railways.geojson лежат в той же папке
+                    </span>
+                    <br>
+                    <button onclick="location.reload()" style="margin-top:8px; padding:5px 15px; background:#1a1a2e; color:white; border:none; border-radius:3px; cursor:pointer;">
+                        🔄 Попробовать снова
+                    </button>
+                `;
+            }
+        }
+
+        // --- 6. ЗАПУСКАЕМ ---
+        loadData();
+    </script>
+</body>
+</html>
