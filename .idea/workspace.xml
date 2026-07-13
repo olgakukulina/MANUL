@@ -8,11 +8,12 @@
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/front/base.html" beforeDir="false" afterPath="$PROJECT_DIR$/front/base.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/front/css/style.css" beforeDir="false" afterPath="$PROJECT_DIR$/front/css/style.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/front/data/admin_data.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/front/js/logic.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/front/railways.geojson" beforeDir="false" afterPath="$PROJECT_DIR$/front/data/railways.geojson" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/front/server.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/front/stations.geojson" beforeDir="false" afterPath="$PROJECT_DIR$/front/data/stations.geojson" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/front/data/admin_data.json" beforeDir="false" afterPath="$PROJECT_DIR$/front/data/admin_data.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/front/js/api.js" beforeDir="false" afterPath="$PROJECT_DIR$/front/js/api.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/front/js/app.js" beforeDir="false" afterPath="$PROJECT_DIR$/front/js/app.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/front/js/auth.js" beforeDir="false" afterPath="$PROJECT_DIR$/front/js/auth.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/front/js/map.js" beforeDir="false" afterPath="$PROJECT_DIR$/front/js/map.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/front/js/ui.js" beforeDir="false" afterPath="$PROJECT_DIR$/front/js/ui.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -53,23 +54,23 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "DefaultHtmlFileTemplate": "HTML File",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "Python.app.executor": "Run",
-    "Python.server.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "front",
-    "last_opened_file_path": "C:/Users/Ольга Кукулина/Documents/GitHub/MANUL/front"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;DefaultHtmlFileTemplate&quot;: &quot;HTML File&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;Python.app.executor&quot;: &quot;Run&quot;,
+    &quot;Python.server.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;front&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/Ольга Кукулина/Documents/GitHub/MANUL/front&quot;
   },
-  "keyToStringList": {
-    "com.intellij.ide.scratch.ScratchImplUtil$2/New Scratch File": [
-      "JavaScript"
+  &quot;keyToStringList&quot;: {
+    &quot;com.intellij.ide.scratch.ScratchImplUtil$2/New Scratch File&quot;: [
+      &quot;JavaScript&quot;
     ]
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\Ольга Кукулина\Documents\GitHub\MANUL\front" />

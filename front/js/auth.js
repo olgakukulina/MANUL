@@ -2,10 +2,8 @@ import { showToast } from './ui.js';
 import { initMap, loadData } from './map.js';
 import { showAppUI, hideAppUI } from './ui.js';
 
-// ==================== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ====================
 export let currentUser = null;
 
-// ==================== АУТЕНТИФИКАЦИЯ ====================
 export function toggleAuthMode() {
     const isRegister = document.getElementById('isRegister').checked;
     document.getElementById('registerFields').style.display = isRegister ? 'block' : 'none';
@@ -58,7 +56,7 @@ export async function handleAuth(e) {
         console.warn('Auth error, using demo mode:', err);
         currentUser = { login: login || 'admin', role: 'admin', name: name || 'Администратор' };
         showApp();
-        showToast('⚠️ Работа в демо-режиме (сервер не отвечает)');
+        showToast('Работа в демо-режиме');
     }
 }
 

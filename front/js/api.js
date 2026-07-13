@@ -1,7 +1,7 @@
 import { API_URL, ADMIN_URL } from './config.js';
 import { showToast } from './ui.js';
 
-// ==================== API ЗАПРОСЫ ====================
+// API ЗАПРОСЫ
 export async function apiRequest(endpoint, options = {}) {
     try {
         const response = await fetch(`${API_URL}${endpoint}`, {
@@ -17,7 +17,7 @@ export async function apiRequest(endpoint, options = {}) {
         return await response.json();
     } catch (error) {
         console.error('API Error:', error);
-        showToast(`❌ Ошибка: ${error.message}`);
+        showToast(`Ошибка: ${error.message}`);
         throw error;
     }
 }
@@ -37,7 +37,7 @@ export async function adminRequest(endpoint, options = {}) {
         return await response.json();
     } catch (error) {
         console.error('Admin API Error:', error);
-        showToast(`❌ Ошибка: ${error.message}`);
+        showToast(`Ошибка: ${error.message}`);
         throw error;
     }
 }

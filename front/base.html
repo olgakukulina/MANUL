@@ -1,9 +1,7 @@
 <!DOCTYPE html>
 <html>
-<!DOCTYPE html>
-<html>
 <head>
-    <title>Горьковская ЖД - Маршруты с километражом</title>
+    <title>МАНУЛ</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -14,7 +12,7 @@
     <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-    <!-- Модальное окно авторизации -->
+
     <div id="authModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -53,11 +51,11 @@
         </div>
     </div>
 
-    <!-- Основное приложение -->
+
     <div id="app" style="display:none;">
         <div class="header">
             <div>
-                <h1>Горьковская ЖД</h1>
+                <h1>МАНУЛ</h1>
                 <p id="userInfo">Кликните на станцию для добавления в маршрут</p>
             </div>
             <div class="controls">
@@ -71,6 +69,30 @@
             </div>
         </div>
 
+
+        <div id="forestMode" style="display:none; background: #f0f7e8; padding: 10px 20px; border-bottom: 3px solid #2e7d32;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <span style="font-size: 18px; font-weight: bold; color: #2e7d32;">Режим: Формирование лесного маршрута</span>
+                    <span id="forestStationName" style="margin-left: 15px; font-size: 16px; color: #555;"></span>
+                </div>
+                <div>
+                    <button class="forest-tab active" data-tab="collection" onclick="window.switchForestTab('collection')"> Маршрут сбора</button>
+                    <button class="forest-tab" data-tab="forecast" onclick="window.switchForestTab('forecast')"> Прогноз погрузки</button>
+                    <button class="forest-exit" onclick="window.closeForestScenario()">✕ Закрыть режим</button>
+                </div>
+            </div>
+        </div>
+
+
+        <div id="forestSelector" style="display:none; background: white; padding: 15px 20px; border-bottom: 1px solid #ddd;">
+            <h3 style="margin: 0 0 10px 0; color: #2e7d32;">Выберите опорную станцию для лесного маршрута</h3>
+            <div id="baseStationsList" style="display: flex; flex-wrap: wrap; gap: 8px;">
+
+            </div>
+            <button onclick="window.closeForestSelector()" style="margin-top: 10px; padding: 5px 15px; background: #999; color: white; border: none; border-radius: 3px; cursor: pointer;">Отмена</button>
+        </div>
+
         <div id="adminPanel" class="admin-panel" style="display:none;">
             <div class="admin-tools">
                 <button onclick="window.clearAdminData()" class="btn clear">🗑 Очистить все данные об опорных пунктах</button>
@@ -79,15 +101,25 @@
         </div>
 
         <div class="stats" id="stats">
-            <span>⏳ Загрузка данных...</span>
-            <span id="routeStatus">🗺 Маршрут: <span style="color:#2980b9; font-weight:bold;">выберите станции</span></span>
+            <span> Загрузка данных...</span>
+            <span id="routeStatus">Маршрут: <span style="color:#2980b9; font-weight:bold;">выберите станции</span></span>
         </div>
 
         <div id="map">
             <div class="loading" id="loading">
                 <div class="spinner"></div>
-                <h3>⏳ Загрузка данных</h3>
+                <h3> Загрузка данных</h3>
                 <p style="color: #666; font-size: 14px;">Подключение к серверу...</p>
+            </div>
+        </div>
+
+
+        <div id="forestContent" style="display:none; padding: 10px 20px; background: #f9f9f9; min-height: 200px;">
+            <div id="collectionTab" class="forest-tab-content active">
+                <p style="color: #999; text-align: center; padding: 40px;"> Здесь будет таблица маршрута сбора</p>
+            </div>
+            <div id="forecastTab" class="forest-tab-content" style="display:none;">
+                <p style="color: #999; text-align: center; padding: 40px;"> Здесь будет график прогноза погрузки</p>
             </div>
         </div>
 
@@ -96,31 +128,43 @@
         <div class="legend">
             <div class="legend-item">
                 <div class="legend-line road"></div>
-                <span>🛤 Железные дороги</span>
+                <span> Железные дороги</span>
             </div>
             <div class="legend-item">
                 <div class="legend-line route"></div>
-                <span>🗺 Маршрут</span>
+                <span> Маршрут</span>
             </div>
             <div class="legend-item">
                 <div class="legend-marker"></div>
-                <span>📍 Станции</span>
+                <span> Станции</span>
             </div>
             <div class="legend-item">
                 <div class="legend-marker route-point"></div>
-                <span>📍 Точки маршрута</span>
+                <span> Точки маршрута</span>
             </div>
             <div class="legend-item" id="baseStationLegend" style="display:none;">
                 <div class="legend-marker base-station"></div>
-                <span>⭐ Опорная станция</span>
+                <span> Опорная станция</span>
             </div>
             <div style="margin-top:8px; font-size:11px; color:#999;">
-                💡 Кликните на станцию для добавления в маршрут
+                 Кликните на станцию для добавления в маршрут
             </div>
         </div>
     </div>
 
-    <!-- Используем модули ES6 -->
+
+<div id="enterpriseModal" class="modal" style="display:none;">
+    <div class="modal-content" style="max-width: 95vw; max-height: 90vh; overflow-y: auto; width: 95%;">
+        <div class="modal-header">
+            <h2 id="enterpriseModalTitle"> Характеристика предприятия</h2>
+            <button onclick="window.closeEnterpriseModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">&times;</button>
+        </div>
+        <div class="modal-body" id="enterpriseModalBody">
+
+        </div>
+    </div>
+</div>
+
     <script type="module" src="js/app.js"></script>
 
 </body>

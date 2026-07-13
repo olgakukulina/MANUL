@@ -1,27 +1,43 @@
-// ==================== ГЛАВНЫЙ ФАЙЛ ПРИЛОЖЕНИЯ ====================
+
 import { handleAuth, toggleAuthMode, logout, currentUser } from './auth.js';
-import { initMap, loadData, searchStations, buildRoute, clearRoute, addToRoute, toggleBaseStation, clearAdminData } from './map.js';
+import {
+    initMap, loadData, searchStations, buildRoute, clearRoute,
+    addToRoute, toggleBaseStation, clearAdminData,
+    openForestScenario, closeForestScenario, closeForestSelector,
+    switchForestTab, openEnterpriseModal, closeEnterpriseModal,
+    updateWagons, makeBaseWithWagons
+} from './map.js';
 import { showToast, updateStats, updateRouteStatus } from './ui.js';
 import { API_URL, ADMIN_URL } from './config.js';
 
-// Экспортируем функции для использования в HTML
+
 window.handleAuth = handleAuth;
 window.toggleAuthMode = toggleAuthMode;
 window.logout = logout;
 window.searchStations = searchStations;
-window.buildRoute = buildRoute;
-window.clearRoute = clearRoute;
 window.addToRoute = addToRoute;
 window.toggleBaseStation = toggleBaseStation;
+window.buildRoute = buildRoute;
+window.clearRoute = clearRoute;
 window.clearAdminData = clearAdminData;
+window.openForestScenario = openForestScenario;
+window.closeForestScenario = closeForestScenario;
+window.closeForestSelector = closeForestSelector;
+window.switchForestTab = switchForestTab;
+window.openEnterpriseModal = openEnterpriseModal;
+window.closeEnterpriseModal = closeEnterpriseModal;
+window.updateWagons = updateWagons;
+window.makeBaseWithWagons = makeBaseWithWagons;
 
-// ==================== ЗАПУСК ====================
+
 document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('authModal').style.display = 'flex';
-    console.log('🚂 ЖД Навигатор загружен!');
-    console.log(`📡 API сервер: ${API_URL}`);
-    console.log(`🔧 Admin API: ${ADMIN_URL}`);
+
+    const authModal = document.getElementById('authModal');
+    if (authModal) {
+        authModal.style.display = 'flex';
+    } else {
+        console.error('Модальное окно авторизации не найдено!');
+    }
 });
 
-// Экспортируем для использования в других модулях
 export { currentUser };
