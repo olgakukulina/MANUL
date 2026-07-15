@@ -13,6 +13,13 @@ export let roadLayers = [];
 export let routePointMarkers = [];
 export let baseStations = [];
 export let wagonsData = {};
+export let attachedStationsData = {};
+export let enterprisesData = {};
+
+// Режим прикрепления станций
+export let attachMode = false;
+export let selectedBaseForAttach = null;
+export let selectedStationsForAttach = new Set();
 
 // КАРТА
 export function initMap() {
@@ -61,11 +68,31 @@ export async function loadWagonsData() {
     try {
         const response = await fetch('http://localhost:5000/api/admin/wagons/all');
         if (response.ok) {
-            wagonsData = await response.json();
-            console.log(' Данные о вагонах загружены:', wagonsData);
+            const data = await response.json();
+            wagonsData = data;
+            attachedStationsData = {};
+            for (const [station, info] of Object.entries(data)) {
+                if (info.attached_stations) {
+                    attachedStationsData[station] = info.attached_stations;
+                }
+            }
+            console.log('Данные о вагонах загружены:', wagonsData);
         }
     } catch (error) {
         console.error('Error loading wagons data:', error);
+    }
+}
+
+// ЗАГРУЗКА ДАННЫХ О ПРЕДПРИЯТИЯХ
+export async function loadEnterprisesData() {
+    try {
+        const response = await fetch('http://localhost:5000/api/enterprises');
+        if (response.ok) {
+            enterprisesData = await response.json();
+            console.log('Данные о предприятиях загружены:', enterprisesData);
+        }
+    } catch (error) {
+        console.error('Error loading enterprises data:', error);
     }
 }
 
@@ -82,12 +109,16 @@ export async function loadData() {
         }
 
         await loadWagonsData();
+        await loadEnterprisesData();
 
         if (currentUser && currentUser.role === 'admin') {
             try {
                 const adminData = await getAdminDataAPI();
                 if (adminData) {
                     baseStations = Object.keys(adminData.flags || {});
+                    if (adminData.attached_stations) {
+                        attachedStationsData = adminData.attached_stations;
+                    }
                 }
             } catch (e) {
                 console.warn('Could not load admin data:', e);
@@ -164,6 +195,7 @@ export async function makeBaseWithWagons(stationName) {
                 showToast(`Станция "${stationName}" назначена опорной с ${count} вагонами`);
                 map.closePopup();
                 displayStations();
+                updateAttachModeUI(stationName);
             } else {
                 showToast(`Ошибка при добавлении вагонов: ${wagonsResult.error}`);
             }
@@ -213,8 +245,218 @@ export async function updateWagons(stationName) {
         }
     } catch (error) {
         console.error('Error updating wagons:', error);
-        showToast(' Ошибка при обновлении вагонов');
+        showToast('Ошибка при обновлении вагонов');
     }
+}
+
+// РЕЖИМ ПРИКРЕПЛЕНИЯ СТАНЦИЙ
+export function toggleAttachMode(baseStation) {
+    if (attachMode && selectedBaseForAttach === baseStation) {
+        attachMode = false;
+        selectedBaseForAttach = null;
+        selectedStationsForAttach.clear();
+        document.getElementById('attachModePanel').style.display = 'none';
+        showToast('Режим прикрепления станций отключен');
+        displayStations();
+        return;
+    }
+
+    attachMode = true;
+    selectedBaseForAttach = baseStation;
+    selectedStationsForAttach.clear();
+
+    const panel = document.getElementById('attachModePanel');
+    panel.style.display = 'block';
+    document.getElementById('attachBaseName').textContent = baseStation;
+    document.getElementById('selectedAttachCount').textContent = '0';
+
+    const attachedList = document.getElementById('attachedStationsList');
+    attachedList.innerHTML = '';
+    const attached = attachedStationsData[baseStation] || [];
+    if (attached.length > 0) {
+        attached.forEach(name => {
+            const tag = document.createElement('span');
+            tag.className = 'attached-tag';
+            tag.textContent = name;
+            const removeBtn = document.createElement('button');
+            removeBtn.textContent = '×';
+            removeBtn.onclick = () => detachStation(baseStation, name);
+            tag.appendChild(removeBtn);
+            attachedList.appendChild(tag);
+        });
+    } else {
+        attachedList.innerHTML = '<span style="color: #999; font-size: 13px;">Нет прикрепленных станций</span>';
+    }
+
+    showToast('Режим прикрепления: кликайте на станции на карте для выбора');
+    displayStations();
+}
+
+export function updateAttachModeUI(baseStation) {
+    const panel = document.getElementById('attachModePanel');
+    if (panel.style.display === 'block') {
+        document.getElementById('attachBaseName').textContent = baseStation || selectedBaseForAttach;
+    }
+}
+
+export function selectStationForAttach(stationName) {
+    if (!attachMode || !selectedBaseForAttach) {
+        return;
+    }
+
+    for (const [base, attached] of Object.entries(attachedStationsData)) {
+        if (base !== selectedBaseForAttach && attached.includes(stationName)) {
+            showToast(`Станция "${stationName}" уже прикреплена к "${base}"`);
+            return;
+        }
+    }
+
+    if (baseStations.includes(stationName)) {
+        showToast('Нельзя прикрепить опорную станцию');
+        return;
+    }
+
+    if (selectedStationsForAttach.has(stationName)) {
+        selectedStationsForAttach.delete(stationName);
+        showToast(`Станция "${stationName}" убрана из выбора`);
+    } else {
+        selectedStationsForAttach.add(stationName);
+        showToast(`Станция "${stationName}" выбрана для прикрепления`);
+    }
+
+    document.getElementById('selectedAttachCount').textContent = selectedStationsForAttach.size;
+    displayStations();
+}
+
+export async function confirmAttachStations() {
+    if (selectedStationsForAttach.size === 0) {
+        showToast('Выберите хотя бы одну станцию');
+        return;
+    }
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const stationName of selectedStationsForAttach) {
+        try {
+            const response = await fetch('http://localhost:5000/api/admin/attach', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    baseStation: selectedBaseForAttach,
+                    stationToAttach: stationName
+                })
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                successCount++;
+                if (!attachedStationsData[selectedBaseForAttach]) {
+                    attachedStationsData[selectedBaseForAttach] = [];
+                }
+                if (!attachedStationsData[selectedBaseForAttach].includes(stationName)) {
+                    attachedStationsData[selectedBaseForAttach].push(stationName);
+                }
+            } else {
+                errorCount++;
+                showToast(result.error || `Ошибка при прикреплении "${stationName}"`);
+            }
+        } catch (error) {
+            errorCount++;
+            console.error('Error attaching station:', error);
+        }
+    }
+
+    selectedStationsForAttach.clear();
+    document.getElementById('selectedAttachCount').textContent = '0';
+
+    if (successCount > 0) {
+        showToast(`Прикреплено ${successCount} станций к "${selectedBaseForAttach}"`);
+        await loadWagonsData();
+        displayStations();
+        updateAttachedList(selectedBaseForAttach);
+    }
+
+    if (errorCount > 0) {
+        showToast(`Ошибок: ${errorCount}`);
+    }
+}
+
+async function detachStation(baseStation, stationName) {
+    try {
+        const response = await fetch('http://localhost:5000/api/admin/detach', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                baseStation: baseStation,
+                stationToDetach: stationName
+            })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            showToast(`Станция "${stationName}" откреплена`);
+            if (attachedStationsData[baseStation]) {
+                attachedStationsData[baseStation] = attachedStationsData[baseStation].filter(s => s !== stationName);
+            }
+            await loadWagonsData();
+            displayStations();
+            updateAttachedList(baseStation);
+        } else {
+            showToast(`Ошибка: ${result.error || 'Не удалось открепить станцию'}`);
+        }
+    } catch (error) {
+        console.error('Error detaching station:', error);
+        showToast('Ошибка при откреплении станции');
+    }
+}
+
+function updateAttachedList(baseStation) {
+    const attachedList = document.getElementById('attachedStationsList');
+    const attached = attachedStationsData[baseStation] || [];
+    attachedList.innerHTML = '';
+    if (attached.length > 0) {
+        attached.forEach(name => {
+            const tag = document.createElement('span');
+            tag.className = 'attached-tag';
+            tag.textContent = name;
+            const removeBtn = document.createElement('button');
+            removeBtn.textContent = '×';
+            removeBtn.onclick = () => detachStation(baseStation, name);
+            tag.appendChild(removeBtn);
+            attachedList.appendChild(tag);
+        });
+    } else {
+        attachedList.innerHTML = '<span style="color: #999; font-size: 13px;">Нет прикрепленных станций</span>';
+    }
+}
+
+export function cancelAttachMode() {
+    attachMode = false;
+    selectedBaseForAttach = null;
+    selectedStationsForAttach.clear();
+    document.getElementById('attachModePanel').style.display = 'none';
+    showToast('Режим прикрепления отменен');
+    displayStations();
+}
+
+// ПОЛУЧЕНИЕ ЦВЕТА СТАНЦИИ
+function getStationColor(stationName) {
+    for (const [base, attached] of Object.entries(attachedStationsData)) {
+        if (attached.includes(stationName)) {
+            return getColorForBase(base);
+        }
+    }
+    return null;
+}
+
+function getColorForBase(baseStation) {
+    const colors = ['#e74c3c', '#2ecc71', '#3498db', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#2c3e50'];
+    let hash = 0;
+    for (let i = 0; i < baseStation.length; i++) {
+        hash = baseStation.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
 }
 
 // ОТОБРАЖЕНИЕ СТАНЦИЙ
@@ -226,6 +468,17 @@ export function displayStations() {
         const isInRoute = routePoints.some(p => p.name === station.name);
         const isBase = baseStations.includes(station.name);
 
+        let attachedToBase = null;
+        for (const [base, attached] of Object.entries(attachedStationsData)) {
+            if (attached.includes(station.name)) {
+                attachedToBase = base;
+                break;
+            }
+        }
+
+        const isSelectedForAttach = selectedStationsForAttach.has(station.name);
+        const isAttachedToOtherBase = attachedToBase && attachedToBase !== selectedBaseForAttach;
+
         let currentWagons = 0;
         if (isBase && wagonsData[station.name]) {
             currentWagons = wagonsData[station.name].current_count || 0;
@@ -234,13 +487,14 @@ export function displayStations() {
         let icon;
 
         if (isBase) {
+            const baseColor = getColorForBase(station.name);
             icon = L.divIcon({
                 className: 'base-station-icon',
                 html: `
                     <div style="position: relative; display: flex; flex-direction: column; align-items: center;">
                         <div style="position: relative; width: 32px; height: 32px;">
                             <div style="position: absolute; left: 14px; top: 0; width: 3px; height: 32px; background: #555; border-radius: 1px;"></div>
-                            <div style="position: absolute; left: 14px; top: 2px; width: 24px; height: 18px; background: #e74c3c; clip-path: polygon(0 0, 100% 0, 100% 70%, 0 100%); border-radius: 2px 2px 0 0; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">
+                            <div style="position: absolute; left: 14px; top: 2px; width: 24px; height: 18px; background: ${baseColor}; clip-path: polygon(0 0, 100% 0, 100% 70%, 0 100%); border-radius: 2px 2px 0 0; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">
                             </div>
                         </div>
                         <div style="background: #9b59b6; color: white; border-radius: 12px; padding: 1px 10px; font-size: 11px; font-weight: bold; margin-top: -4px; border: 2px solid white; box-shadow: 0 1px 4px rgba(0,0,0,0.3); min-width: 20px; text-align: center;">
@@ -262,11 +516,41 @@ export function displayStations() {
                 iconAnchor: [8, 8],
                 popupAnchor: [0, -8]
             });
+        } else if (isSelectedForAttach) {
+            icon = L.divIcon({
+                className: 'station-icon attach-selected',
+                html: `
+                    <div style="width: 14px; height: 14px; background: #2980b9; border-radius: 50%; border: 2px solid #1a5276; box-shadow: 0 0 8px rgba(41, 128, 185, 0.4);"></div>
+                `,
+                iconSize: [14, 14],
+                iconAnchor: [7, 7],
+                popupAnchor: [0, -7]
+            });
+        } else if (attachedToBase) {
+            icon = L.divIcon({
+                className: 'station-icon attached-station',
+                html: `
+                    <div style="width: 12px; height: 12px; background: #3498db; border-radius: 50%; border: 2px solid #2471a3; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
+                `,
+                iconSize: [12, 12],
+                iconAnchor: [6, 6],
+                popupAnchor: [0, -6]
+            });
+        } else if (isAttachedToOtherBase) {
+            icon = L.divIcon({
+                className: 'station-icon attached-other',
+                html: `
+                    <div style="width: 12px; height: 12px; background: #bdc3c7; border-radius: 50%; border: 2px solid #95a5a6; opacity: 0.5; cursor: not-allowed;"></div>
+                `,
+                iconSize: [12, 12],
+                iconAnchor: [6, 6],
+                popupAnchor: [0, -6]
+            });
         } else {
             icon = L.divIcon({
                 className: 'station-icon',
                 html: `
-                    <div style="width: 12px; height: 12px; background: #e74c3c; border-radius: 50%; border: 2px solid #c0392b; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
+                    <div style="width: 12px; height: 12px; background: ${attachMode ? '#5dade2' : '#e74c3c'}; border-radius: 50%; border: 2px solid ${attachMode ? '#2e86c1' : '#c0392b'}; box-shadow: 0 2px 4px rgba(0,0,0,0.2); ${attachMode ? 'cursor: pointer;' : ''}"></div>
                 `,
                 iconSize: [12, 12],
                 iconAnchor: [6, 6],
@@ -276,14 +560,49 @@ export function displayStations() {
 
         const marker = L.marker([station.lat, station.lon], { icon: icon });
 
+        // Индикатор вагонов над станцией (без квадратов и галочек)
+        const enterprise = enterprisesData[station.name];
+        const showWagons = !isBase || (isBase && forestModeActive);
+        if (enterprise && showWagons) {
+            const totalWagons = (enterprise.wagons?.empty || 0) +
+                                (enterprise.wagons?.loaded || 0) +
+                                (enterprise.wagons?.ready_for_pickup || 0);
+
+            if (totalWagons > 0) {
+                const wagonIndicator = L.divIcon({
+                    className: 'wagon-indicator',
+                    html: `
+                        <div style="display: flex; gap: 6px; align-items: center; justify-content: center; background: white; padding: 2px 25px; border-radius: 6px; border: 1px solid #ccc; box-shadow: 0 1px 4px rgba(0,0,0,0.15); font-size: 13px; font-weight: 700; min-width: 80px;">
+                            <span style="color: #2980b9;">${enterprise.wagons?.empty || 0}</span>
+                            <span style="color: #ccc;">|</span>
+                            <span style="color: #9b59b6;">${enterprise.wagons?.loaded || 0}</span>
+                            <span style="color: #ccc;">|</span>
+                            <span style="color: #2e7d32;">${enterprise.wagons?.ready_for_pickup || 0}</span>
+                        </div>
+                    `,
+                    iconSize: [0, 0],
+                    iconAnchor: [0, 0]
+                });
+
+                const indicator = L.marker([station.lat + 0.015, station.lon], {
+                    icon: wagonIndicator,
+                    interactive: false
+                }).addTo(map);
+                markerLayers.push(indicator);
+            }
+        }
+
+
         let popupContent = '';
 
         if (currentUser && currentUser.role === 'admin') {
+            const attachedToOther = attachedToBase && attachedToBase !== selectedBaseForAttach;
+
             if (isBase) {
                 popupContent = `
                     <div class="station-popup" style="min-width: 220px;">
                         <h3 style="margin: 0 0 5px 0;">${station.name}</h3>
-                        <span class="badge" style="background: #9b59b6; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px;"> Опорная</span>
+                        <span class="badge" style="background: #9b59b6; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px;">Опорная</span>
                         <div style="margin: 8px 0; display: flex; align-items: center; gap: 8px;">
                             <span style="font-size: 14px;">Вагонов:</span>
                             <span style="background: #9b59b6; color: white; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px;">
@@ -302,19 +621,68 @@ export function displayStations() {
                                 </button>
                             </div>
                         </div>
+                        <button onclick="window.toggleAttachMode('${station.name}')"
+                                style="padding: 6px 12px; background: #3498db; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 13px; width: 100%; margin-top: 5px;">
+                            ${attachMode && selectedBaseForAttach === station.name ? 'Отключить режим прикрепления' : 'Прикрепить станции'}
+                        </button>
+                        <hr style="margin: 8px 0; border: none; border-top: 1px solid #eee;">
                         <button onclick="window.toggleBaseStation('${station.name}')"
                                 style="padding: 6px 12px; background: #e74c3c; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 13px; width: 100%; margin-top: 5px;">
-                            ✕ Убрать опорную
+                            Убрать опорную
                         </button>
                         <hr style="margin: 8px 0; border: none; border-top: 1px solid #eee;">
                         <button onclick="window.openEnterpriseModal('${station.name}')"
                                 style="padding: 6px 12px; background: #f39c12; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 13px; width: 100%; margin-top: 5px;">
-                             Характеристика предприятия
+                            Характеристика предприятия
                         </button>
                         <hr style="margin: 8px 0; border: none; border-top: 1px solid #eee;">
                         <button class="btn route-btn" onclick="window.addToRoute('${station.name}')"
                                 style="padding: 6px 12px; background: #2980b9; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 13px; width: 100%;">
-                             Добавить в маршрут
+                            Добавить в маршрут
+                        </button>
+                    </div>
+                `;
+            } else if (attachMode && !attachedToOther) {
+                const isSelected = selectedStationsForAttach.has(station.name);
+                popupContent = `
+                    <div class="station-popup" style="min-width: 220px;">
+                        <h3 style="margin: 0 0 5px 0;">${station.name}</h3>
+                        <span class="badge" style="background: #3498db; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px;">${station.type || 'Станция'}</span>
+                        <hr style="margin: 8px 0; border: none; border-top: 1px solid #eee;">
+                        <div class="field" style="font-size: 13px; color: #555;"><strong>Город:</strong> ${station.city || 'Не указан'}</div>
+                        <hr style="margin: 8px 0; border: none; border-top: 1px solid #eee;">
+                        <button onclick="window.selectStationForAttach('${station.name}')"
+                                style="padding: 6px 12px; background: ${isSelected ? '#e74c3c' : '#2980b9'}; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 13px; width: 100%; margin-top: 5px;">
+                            ${isSelected ? 'Убрать из выбора' : 'Выбрать для прикрепления'}
+                        </button>
+                        <hr style="margin: 8px 0; border: none; border-top: 1px solid #eee;">
+                        <button onclick="window.openEnterpriseModal('${station.name}')"
+                                style="padding: 6px 12px; background: #f39c12; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 13px; width: 100%; margin-top: 5px;">
+                            Характеристика предприятия
+                        </button>
+                        <hr style="margin: 8px 0; border: none; border-top: 1px solid #eee;">
+                        <button class="btn route-btn" onclick="window.addToRoute('${station.name}')"
+                                style="padding: 6px 12px; background: #2980b9; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 13px; width: 100%;">
+                            Добавить в маршрут
+                        </button>
+                    </div>
+                `;
+            } else if (attachedToOther) {
+                popupContent = `
+                    <div class="station-popup" style="min-width: 220px;">
+                        <h3 style="margin: 0 0 5px 0;">${station.name}</h3>
+                        <span class="badge" style="background: #95a5a6; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px;">Прикреплена к "${attachedToBase}"</span>
+                        <hr style="margin: 8px 0; border: none; border-top: 1px solid #eee;">
+                        <div class="field" style="font-size: 13px; color: #555;"><strong>Город:</strong> ${station.city || 'Не указан'}</div>
+                        <hr style="margin: 8px 0; border: none; border-top: 1px solid #eee;">
+                        <button onclick="window.openEnterpriseModal('${station.name}')"
+                                style="padding: 6px 12px; background: #f39c12; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 13px; width: 100%; margin-top: 5px;">
+                            Характеристика предприятия
+                        </button>
+                        <hr style="margin: 8px 0; border: none; border-top: 1px solid #eee;">
+                        <button class="btn route-btn" onclick="window.addToRoute('${station.name}')"
+                                style="padding: 6px 12px; background: #2980b9; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 13px; width: 100%;">
+                            Добавить в маршрут
                         </button>
                     </div>
                 `;
@@ -334,7 +702,7 @@ export function displayStations() {
                         </div>
                         <button onclick="window.makeBaseWithWagons('${station.name}')"
                                 style="padding: 6px 12px; background: #9b59b6; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 13px; width: 100%;">
-                             Сделать опорной
+                            Сделать опорной
                         </button>
                         <hr style="margin: 8px 0; border: none; border-top: 1px solid #eee;">
                         <button onclick="window.openEnterpriseModal('${station.name}')"
@@ -350,11 +718,13 @@ export function displayStations() {
                 `;
             }
         } else {
+            const attachedText = attachedToBase ? `Прикреплена к "${attachedToBase}"` : '';
             popupContent = `
                 <div class="station-popup">
                     <h3 style="margin: 0 0 5px 0;">${station.name}</h3>
                     <span class="badge" style="background: #3498db; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px;">${station.type || 'Станция'}</span>
                     ${isBase ? `<div style="margin: 5px 0; color: #9b59b6;">Опорная станция</div>` : ''}
+                    ${attachedText ? `<div style="margin: 5px 0; color: #666; font-size: 12px;">${attachedText}</div>` : ''}
                     <hr style="margin: 8px 0; border: none; border-top: 1px solid #eee;">
                     <div class="field" style="font-size: 13px; color: #555;"><strong>Город:</strong> ${station.city || 'Не указан'}</div>
                     <hr style="margin: 8px 0; border: none; border-top: 1px solid #eee;">
@@ -372,6 +742,14 @@ export function displayStations() {
         }
 
         marker.bindPopup(popupContent);
+
+        if (attachMode && !isBase && !attachedToBase) {
+            marker.on('click', function(e) {
+                selectStationForAttach(station.name);
+                e.target.openPopup();
+            });
+        }
+
         marker.addTo(map);
         markerLayers.push(marker);
     });
@@ -383,14 +761,14 @@ export function addToRoute(stationName) {
     if (!station) return;
 
     if (routePoints.some(p => p.name === stationName)) {
-        showToast(` "${stationName}" уже в маршруте`);
+        showToast(`"${stationName}" уже в маршруте`);
         return;
     }
 
     routePoints.push(station);
     updateRouteStatus(routePoints);
     displayStations();
-    showToast(` Добавлена станция "${stationName}" (${routePoints.length})`);
+    showToast(`Добавлена станция "${stationName}" (${routePoints.length})`);
 }
 
 export async function buildRoute() {
@@ -399,7 +777,7 @@ export async function buildRoute() {
         return;
     }
 
-    showToast(' Строим маршрут...');
+    showToast('Строим маршрут...');
 
     try {
         const data = await buildRouteAPI(routePoints);
@@ -438,7 +816,7 @@ export async function buildRoute() {
         updateStatsWithRoute(allStations.length, baseStations.length, routePoints, distance);
 
         map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] });
-        showToast(` Маршрут построен! ${routePoints.length} станций, ${distance.route_km} км`);
+        showToast(`Маршрут построен! ${routePoints.length} станций, ${distance.route_km} км`);
 
     } catch (error) {
         console.error('Route error:', error);
@@ -456,7 +834,7 @@ export function clearRoute() {
     updateRouteStatus(routePoints);
     displayStations();
     updateStats(allStations.length, baseStations.length);
-    showToast('🗑 Маршрут очищен');
+    showToast('Маршрут очищен');
 }
 
 // ОПОРНЫЕ СТАНЦИИ
@@ -473,21 +851,26 @@ export async function toggleBaseStation(stationName) {
 
         if (isBase) {
             baseStations = baseStations.filter(s => s !== stationName);
-            showToast(` Станция "${stationName}" больше не опорная`);
+            delete attachedStationsData[stationName];
+            showToast(`Станция "${stationName}" больше не опорная`);
+            if (attachMode && selectedBaseForAttach === stationName) {
+                cancelAttachMode();
+            }
         } else {
             baseStations.push(stationName);
-            showToast(` Станция "${stationName}" назначена опорной`);
+            showToast(`Станция "${stationName}" назначена опорной`);
         }
 
         await loadWagonsData();
         displayStations();
+        updateStats(allStations.length, baseStations.length);
     } catch (error) {
         console.error('Toggle base station error:', error);
     }
 }
 
 export async function clearAdminData() {
-    if (!confirm(' Удалить все опорные станции?')) return;
+    if (!confirm('Удалить все опорные станции?')) return;
 
     try {
         for (const station of baseStations) {
@@ -495,9 +878,13 @@ export async function clearAdminData() {
         }
 
         baseStations = [];
+        attachedStationsData = {};
         await loadWagonsData();
         displayStations();
-        showToast(' Все опорные станции удалены');
+        showToast('Все опорные станции удалены');
+        if (attachMode) {
+            cancelAttachMode();
+        }
     } catch (error) {
         console.error('Clear admin data error:', error);
     }
@@ -542,17 +929,17 @@ export async function searchStations(query) {
                 fillOpacity: 0.9
             });
 
-            const isBaseText = isBase ? '<span class="badge base-badge"> Опорная</span>' : '';
+            const isBaseText = isBase ? '<span class="badge base-badge">Опорная</span>' : '';
 
             marker.bindPopup(`
                 <div class="station-popup">
                     <h3>${station.name}</h3>
                     ${isBaseText}
                     <hr>
-                    <div class="field"><strong> Город:</strong> ${station.city || 'Не указан'}</div>
+                    <div class="field"><strong>Город:</strong> ${station.city || 'Не указан'}</div>
                     <hr>
                     <button class="btn route-btn" onclick="window.addToRoute('${station.name}')">
-                         Добавить в маршрут
+                        Добавить в маршрут
                     </button>
                 </div>
             `);
@@ -564,7 +951,7 @@ export async function searchStations(query) {
     } catch (error) {
         console.error('Search error:', error);
         displayStations();
-        showToast(' Ошибка поиска, показаны все станции');
+        showToast('Ошибка поиска, показаны все станции');
     }
 }
 
@@ -586,7 +973,8 @@ export function openForestScenario() {
 
     baseStations.forEach(stationName => {
         const btn = document.createElement('button');
-        btn.textContent = `${stationName}`;
+        const attachedCount = (attachedStationsData[stationName] || []).length;
+        btn.textContent = `${stationName} (${attachedCount} прикрепленных)`;
         btn.style.cssText = `
             padding: 8px 16px;
             background: #e8f5e9;
@@ -610,7 +998,7 @@ export function openForestScenario() {
         list.appendChild(btn);
     });
 
-    showToast(' Выберите опорную станцию для лесного маршрута');
+    showToast('Выберите опорную станцию для лесного маршрута');
 }
 
 export function closeForestSelector() {
@@ -644,8 +1032,37 @@ export function selectForestStation(stationName) {
         });
     }
 
+    showForestAttachedStations(stationName);
 
     showToast(`Лесной режим активирован для станции "${stationName}"`);
+}
+
+function showForestAttachedStations(baseStation) {
+    const attached = attachedStationsData[baseStation] || [];
+    if (attached.length === 0) {
+        showToast('Нет прикрепленных станций для этой опорной');
+        return;
+    }
+
+    const color = getColorForBase(baseStation);
+    attached.forEach(stationName => {
+        const station = allStations.find(s => s.name === stationName);
+        if (station) {
+            const glowMarker = L.circleMarker([station.lat, station.lon], {
+                radius: 15,
+                color: color,
+                weight: 3,
+                opacity: 0.8,
+                fillColor: color,
+                fillOpacity: 0.15
+            }).addTo(map);
+
+            if (!window._forestGlowMarkers) {
+                window._forestGlowMarkers = [];
+            }
+            window._forestGlowMarkers.push(glowMarker);
+        }
+    });
 }
 
 export function closeForestScenario() {
@@ -658,6 +1075,11 @@ export function closeForestScenario() {
     if (window._forestMarker) {
         map.removeLayer(window._forestMarker);
         window._forestMarker = null;
+    }
+
+    if (window._forestGlowMarkers) {
+        window._forestGlowMarkers.forEach(m => map.removeLayer(m));
+        window._forestGlowMarkers = [];
     }
 
     const style = document.getElementById('forest-pulse-style');
@@ -680,7 +1102,7 @@ export function closeForestScenario() {
         });
     }
 
-    showToast(' Лесной режим закрыт');
+    showToast('Лесной режим закрыт');
 }
 
 export function switchForestTab(tab) {
@@ -703,16 +1125,26 @@ export function switchForestTab(tab) {
         const tabBtn = document.querySelector('.forest-tab[data-tab="collection"]');
         if (tabBtn) tabBtn.classList.add('active');
         document.getElementById('collectionTab').style.display = 'block';
-        document.getElementById('collectionTab').innerHTML = `
-            <div style="text-align: center; padding: 40px;">
-                <div style="font-size: 48px; margin-bottom: 20px;"></div>
-                <h3 style="color: #2e7d32; margin: 0 0 10px 0;">Маршрут сбора</h3>
-                <p style="color: #999; font-size: 16px;">Функция будет добавлена позже</p>
-                <div style="margin-top: 20px; padding: 10px 20px; background: #fff3e0; border-radius: 8px; display: inline-block;">
-                    <span style="color: #e65100;">В разработке</span>
+
+        const attached = attachedStationsData[selectedForestStation] || [];
+        const color = getColorForBase(selectedForestStation);
+
+        let html = `
+            <div style="padding: 20px;">
+                <h3 style="color: ${color}; margin-bottom: 15px;">Маршрут сбора для "${selectedForestStation}"</h3>
+                <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px;">
+                    ${attached.map(name => `
+                        <span style="background: ${color}22; border: 2px solid ${color}; padding: 8px 16px; border-radius: 15px; font-weight: 500;">
+                            ${name}
+                        </span>
+                    `).join('') || '<span style="color: #999;">Нет прикрепленных станций</span>'}
+                </div>
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
+                    <p style="color: #666;">Всего станций в маршруте: ${attached.length}</p>
                 </div>
             </div>
         `;
+        document.getElementById('collectionTab').innerHTML = html;
     } else if (tab === 'forecast') {
         const tabBtn = document.querySelector('.forest-tab[data-tab="forecast"]');
         if (tabBtn) tabBtn.classList.add('active');
@@ -723,14 +1155,14 @@ export function switchForestTab(tab) {
                 <h3 style="color: #2e7d32; margin: 0 0 10px 0;">Прогноз погрузки</h3>
                 <p style="color: #999; font-size: 16px;">Функция будет добавлена позже</p>
                 <div style="margin-top: 20px; padding: 10px 20px; background: #fff3e0; border-radius: 8px; display: inline-block;">
-                    <span style="color: #e65100;"> В разработке</span>
+                    <span style="color: #e65100;">В разработке</span>
                 </div>
             </div>
         `;
     }
 }
 
-// ХАРАКТЕРИСТИКА ПРЕДПРИЯТИЯ
+// ХАРАКТЕРИСТИКА ПРЕДПРИЯТИЯ - ОБНОВЛЕННАЯ ВЕРСИЯ
 export function openEnterpriseModal(stationName) {
     console.log('Открытие характеристики предприятия для:', stationName);
 
@@ -739,93 +1171,113 @@ export function openEnterpriseModal(stationName) {
     const body = document.getElementById('enterpriseModalBody');
 
     if (!modal || !title || !body) {
-        console.error(' Элементы модального окна не найдены!');
-        showToast(' Ошибка: модальное окно не найдено');
+        console.error('Элементы модального окна не найдены!');
+        showToast('Ошибка: модальное окно не найдено');
         return;
     }
 
-    title.textContent = ` Характеристика предприятия: ${stationName}`;
+    title.textContent = `Характеристика предприятия: ${stationName}`;
 
-    const enterpriseData = {
-        name: stationName,
-        loadingSpeed: Math.floor(Math.random()),
-        technicalMeans: [
-            'Будет добавлено'
-        ],
-        products: [
-            { name: 'Щепа', unit: '' },
-            { name: 'Щепа', unit: '' },
-            { name: 'Щепа', unit: '' },
-            { name: 'Щепа', unit: '' },
-            { name: 'Щепа', unit: '' }
-        ],
-        storageCapacity: {
-            warehouse: Math.floor(Math.random()),
-            wagons: Math.floor(Math.random())
-        },
-        emptyWagons: Math.floor(Math.random()),
-        supplyForecast: Math.floor(Math.random())
+    const enterprise = enterprisesData[stationName] || {
+        wagons: { empty: 0, loaded: 0, ready_for_pickup: 0 },
+        loading_speed: 0,
+        technical_means: [],
+        products: {
+            'Щепа': { warehouse: 0, wagons: 0 },
+            'Пиломатериалы': { warehouse: 0, wagons: 0 },
+            'Древесный уголь': { warehouse: 0, wagons: 0 },
+            'Пеллеты': { warehouse: 0, wagons: 0 },
+            'Биотопливо': { warehouse: 0, wagons: 0 }
+        }
     };
 
+    const today = new Date().toISOString().split('T')[0];
+    const forecastDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    const productNames = Object.keys(enterprise.products || {});
+    const warehouseData = productNames.map(name => enterprise.products[name].warehouse || 0);
+    const wagonsData2 = productNames.map(name => enterprise.products[name].wagons || 0);
+    const maxVal = Math.max(...warehouseData, ...wagonsData2, 10);
+
     body.innerHTML = `
+        <!-- Три блока с количеством вагонов - горизонтальные полоски -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+            <div style="background: white; padding: 12px 15px; border-radius: 6px; border: 1px solid #e0e0e0; text-align: center;">
+                <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px;">Порожние</div>
+                <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                    <span style="width: 30px; height: 4px; background: #2980b9; border-radius: 2px;"></span>
+                    <span style="font-size: 26px; font-weight: bold; color: #2980b9;">${enterprise.wagons.empty || 0}</span>
+                </div>
+            </div>
+            <div style="background: white; padding: 12px 15px; border-radius: 6px; border: 1px solid #e0e0e0; text-align: center;">
+                <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px;">Загруженные</div>
+                <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                    <span style="width: 30px; height: 4px; background: #9b59b6; border-radius: 2px;"></span>
+                    <span style="font-size: 26px; font-weight: bold; color: #9b59b6;">${enterprise.wagons.loaded || 0}</span>
+                </div>
+            </div>
+            <div style="background: white; padding: 12px 15px; border-radius: 6px; border: 1px solid #e0e0e0; text-align: center;">
+                <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px;">Готовы к забору</div>
+                <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
+                    <span style="width: 30px; height: 4px; background: #2e7d32; border-radius: 2px;"></span>
+                    <span style="font-size: 26px; font-weight: bold; color: #2e7d32;">${enterprise.wagons.ready_for_pickup || 0}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Скорость погрузки и технические средства -->
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
-            <div style="background: #f0f7ff; padding: 15px; border-radius: 8px; border-left: 4px solid #2980b9;">
-                <div style="font-size: 13px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">Скорость погрузки</div>
-                <div style="font-size: 28px; font-weight: bold; color: #2980b9; margin-top: 5px;">
-                    ${enterpriseData.loadingSpeed} <span style="font-size: 16px; font-weight: normal; color: #666;">ваг/час</span>
+            <div style="background: white; padding: 12px 15px; border-radius: 6px; border: 1px solid #e0e0e0;">
+                <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.3px;">Скорость погрузки</div>
+                <div style="display: flex; align-items: center; gap: 12px; margin-top: 4px;">
+                    <span style="width: 30px; height: 4px; background: #f39c12; border-radius: 2px;"></span>
+                    <span style="font-size: 22px; font-weight: bold; color: #f39c12;">${enterprise.loading_speed || 0}</span>
+                    <span style="font-size: 13px; color: #999;">ваг/сутки</span>
                 </div>
             </div>
-            <div style="background: #f5f0ff; padding: 15px; border-radius: 8px; border-left: 4px solid #9b59b6;">
-                <div style="font-size: 13px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">Технические средства</div>
-                <div style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px;">
-                    ${enterpriseData.technicalMeans.map(item =>
-                        `<span style="background: #e8dff5; padding: 3px 12px; border-radius: 12px; font-size: 13px; color: #6c3483;">${item}</span>`
-                    ).join('')}
+            <div style="background: white; padding: 12px 15px; border-radius: 6px; border: 1px solid #e0e0e0;">
+                <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.3px;">Технические средства</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px;">
+                    ${enterprise.technical_means && enterprise.technical_means.length > 0
+                        ? enterprise.technical_means.map(item =>
+                            `<span style="background: #f5f5f5; padding: 2px 12px; border-radius: 10px; font-size: 12px; color: #555; border: 1px solid #e8e8e8;">${item}</span>`
+                        ).join('')
+                        : '<span style="color: #bbb; font-size: 13px;">Не указаны</span>'}
                 </div>
             </div>
         </div>
 
-        <div style="background: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 8px; padding: 30px; text-align: center; margin-bottom: 20px;">
-            <div style="font-size: 14px; color: #999;">Дополнительная информация</div>
-            <div style="font-size: 12px; color: #bbb; margin-top: 5px;">(будет добавлено позже)</div>
-        </div>
-
+        <!-- Таблица с продукцией (4 столбца: продукция | склад/вагоны текущее | склад/вагоны прогноз) -->
         <div style="margin-bottom: 20px;">
             <div style="overflow-x: auto;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px; background: white; border-radius: 6px; overflow: hidden; border: 1px solid #e8e8e8;">
                     <thead>
-                        <tr style="background: #f0f0f0;">
-                            <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Продукция/дата</th>
-                            <th style="padding: 10px; text-align: center; border: 1px solid #ddd; min-width: 150px;">
-                                Текущее положение
-                                <div style="margin-top: 3px;">
-                                    <input type="date" value="${new Date().toISOString().split('T')[0]}"
-                                           style="padding: 2px 5px; border: 1px solid #ddd; border-radius: 3px; font-size: 11px; width: 120px;">
-                                </div>
+                        <tr style="background: #f7f7f7;">
+                            <th style="padding: 8px 12px; text-align: left; border-bottom: 1px solid #e0e0e0; font-weight: 600; color: #555;">Продукция</th>
+                            <th style="padding: 8px 12px; text-align: center; border-bottom: 1px solid #e0e0e0; font-weight: 600; color: #555; min-width: 120px;">
+                                Текущее
+                                <div style="font-weight: normal; font-size: 10px; color: #aaa;">склад / вагоны</div>
                             </th>
-                            <th style="padding: 10px; text-align: center; border: 1px solid #ddd; min-width: 150px;">
+                            <th style="padding: 8px 12px; text-align: center; border-bottom: 1px solid #e0e0e0; font-weight: 600; color: #555; min-width: 140px;">
                                 Прогноз
-                                <div style="margin-top: 3px;">
-                                    <input type="date" value="${new Date(Date.now() + 7*24*60*60*1000).toISOString().split('T')[0]}"
-                                           style="padding: 2px 5px; border: 1px solid #ddd; border-radius: 3px; font-size: 11px; width: 120px;">
+                                <div style="font-weight: normal; font-size: 10px; color: #aaa;">
+                                    <input type="date" value="${forecastDate}" style="padding: 1px 5px; border: 1px solid #ddd; border-radius: 3px; font-size: 10px; width: 115px;">
                                 </div>
                             </th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${enterpriseData.products.map((product, index) => {
-                            const currentStock = Math.floor(Math.random() * 500 + 50);
-                            const currentWagons = Math.floor(Math.random() * 10 + 1);
-                            const forecastStock = Math.floor(Math.random() * 300 + 30);
-                            const forecastWagons = Math.floor(Math.random() * 8 + 1);
+                        ${Object.entries(enterprise.products || {}).map(([name, data], index) => {
+                            const forecastWarehouse = 0;
+                            const forecastWagons = 0;
                             return `
                                 <tr style="background: ${index % 2 === 0 ? '#fafafa' : 'white'};">
-                                    <td style="padding: 10px; border: 1px solid #ddd; font-weight: 500;">${product.name}</td>
-                                    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">
-                                        ${currentStock} ${product.unit} / ${currentWagons} ваг.
+                                    <td style="padding: 8px 12px; border-bottom: 1px solid #eee; font-weight: 500;">${name}</td>
+                                    <td style="padding: 8px 12px; border-bottom: 1px solid #eee; text-align: center;">
+                                        ${data.warehouse || 0} / ${data.wagons || 0}
                                     </td>
-                                    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">
-                                        ${forecastStock} ${product.unit} / ${forecastWagons} ваг.
+                                    <td style="padding: 8px 12px; border-bottom: 1px solid #eee; text-align: center; color: #bbb;">
+                                        ${forecastWarehouse} / ${forecastWagons}
                                     </td>
                                 </tr>
                             `;
@@ -835,26 +1287,42 @@ export function openEnterpriseModal(stationName) {
             </div>
         </div>
 
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0;">
-
-        <div style="background: #f0fff4; padding: 20px; border-radius: 8px; border: 1px solid #c8e6c9;">
-            <div style="font-size: 13px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">Емкость склада</div>
-            <div style="position: relative; width: 100%; height: 180px; background: #f8f9fa; border-radius: 8px; overflow: hidden; display: flex; align-items: flex-end;">
+        <!-- Графики - горизонтальные гистограммы -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px;">
+            <div style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #e0e0e0;">
+                <div style="font-size: 13px; font-weight: 600; color: #444; margin-bottom: 10px;">Склад (текущее)</div>
+                <div style="display: flex; flex-direction: column; gap: 5px;">
+                    ${productNames.map((name, i) => `
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 11px; width: 70px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; color: #555;">${name}</span>
+                            <div style="flex: 1; height: 16px; background: #f0f0f0; border-radius: 3px; overflow: hidden;">
+                                <div style="height: 100%; width: ${maxVal > 0 ? (warehouseData[i] / maxVal * 100) : 0}%; background: #3498db; border-radius: 3px;"></div>
+                            </div>
+                            <span style="font-size: 12px; font-weight: 500; min-width: 28px; text-align: right; color: #555;">${warehouseData[i]}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            <div style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #e0e0e0;">
+                <div style="font-size: 13px; font-weight: 600; color: #444; margin-bottom: 10px;">Вагоны (текущее)</div>
+                <div style="display: flex; flex-direction: column; gap: 5px;">
+                    ${productNames.map((name, i) => `
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 11px; width: 70px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; color: #555;">${name}</span>
+                            <div style="flex: 1; height: 16px; background: #f0f0f0; border-radius: 3px; overflow: hidden;">
+                                <div style="height: 100%; width: ${maxVal > 0 ? (wagonsData2[i] / maxVal * 100) : 0}%; background: #e67e22; border-radius: 3px;"></div>
+                            </div>
+                            <span style="font-size: 12px; font-weight: 500; min-width: 28px; text-align: right; color: #555;">${wagonsData2[i]}</span>
+                        </div>
+                    `).join('')}
+                </div>
             </div>
         </div>
 
-        <div style="background: #fff8f0; padding: 20px; border-radius: 8px; border: 1px solid #ffcc80;">
-            <div style="font-size: 13px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">Емкость вагонов</div>
-            <div style="position: relative; width: 100%; height: 180px; background: #f8f9fa; border-radius: 8px; overflow: hidden; display: flex; align-items: flex-end;">
-
-            </div>
+        <!-- Итоговая строка -->
+        <div style="padding: 10px 20px; background: white; border-radius: 6px; border: 1px solid #e0e0e0; text-align: center; font-size: 14px; color: #2980b9;">
+            Общее количество вагонов: ${(enterprise.wagons.empty || 0) + (enterprise.wagons.loaded || 0) + (enterprise.wagons.ready_for_pickup || 0)}
         </div>
-    </div>
-
-
-    <div style="margin-top: 15px; padding: 12px 20px; background: #fff3e0; border-radius: 6px; text-align: center; font-size: 14px; color: #e65100; border: 1px solid #ffcc80;">
-         Прогноз подвоза - будет добавлено позже!
-    </div>
     `;
 
     modal.style.display = 'flex';
@@ -890,3 +1358,7 @@ window.closeForestSelector = closeForestSelector;
 window.switchForestTab = switchForestTab;
 window.openEnterpriseModal = openEnterpriseModal;
 window.closeEnterpriseModal = closeEnterpriseModal;
+window.toggleAttachMode = toggleAttachMode;
+window.selectStationForAttach = selectStationForAttach;
+window.confirmAttachStations = confirmAttachStations;
+window.cancelAttachMode = cancelAttachMode;

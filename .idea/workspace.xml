@@ -6,12 +6,14 @@
   <component name="ChangeListManager">
     <list default="true" id="3f12dc9b-b1cf-4cd0-a7c9-26a325a3b614" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/admin.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/admin.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/routes.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/routes.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/front/base.html" beforeDir="false" afterPath="$PROJECT_DIR$/front/base.html" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/front/css/style.css" beforeDir="false" afterPath="$PROJECT_DIR$/front/css/style.css" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/front/data/admin_data.json" beforeDir="false" afterPath="$PROJECT_DIR$/front/data/admin_data.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/front/data/stations.geojson" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/front/js/api.js" beforeDir="false" afterPath="$PROJECT_DIR$/front/js/api.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/front/js/app.js" beforeDir="false" afterPath="$PROJECT_DIR$/front/js/app.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/front/js/auth.js" beforeDir="false" afterPath="$PROJECT_DIR$/front/js/auth.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/front/js/map.js" beforeDir="false" afterPath="$PROJECT_DIR$/front/js/map.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/front/js/ui.js" beforeDir="false" afterPath="$PROJECT_DIR$/front/js/ui.js" afterDir="false" />
     </list>
@@ -54,23 +56,24 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;DefaultHtmlFileTemplate&quot;: &quot;HTML File&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;Python.app.executor&quot;: &quot;Run&quot;,
-    &quot;Python.server.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;front&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/Ольга Кукулина/Documents/GitHub/MANUL/front&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "DefaultHtmlFileTemplate": "HTML File",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Python.app.executor": "Run",
+    "Python.server.executor": "Run",
+    "Python.неважно.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "front",
+    "last_opened_file_path": "C:/Users/Ольга Кукулина/Documents/GitHub/MANUL/front"
   },
-  &quot;keyToStringList&quot;: {
-    &quot;com.intellij.ide.scratch.ScratchImplUtil$2/New Scratch File&quot;: [
-      &quot;JavaScript&quot;
+  "keyToStringList": {
+    "com.intellij.ide.scratch.ScratchImplUtil$2/New Scratch File": [
+      "JavaScript"
     ]
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\Ольга Кукулина\Documents\GitHub\MANUL\front" />
@@ -84,6 +87,28 @@
     </key>
   </component>
   <component name="RunManager" selected="Python.app">
+    <configuration name="неважно" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="MANUL" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/front/data" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/front/data/неважно.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <configuration name="app" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="MANUL" />
       <option name="ENV_FILES" value="" />
@@ -131,6 +156,7 @@
     <recent_temporary>
       <list>
         <item itemvalue="Python.app" />
+        <item itemvalue="Python.неважно" />
         <item itemvalue="Python.server" />
       </list>
     </recent_temporary>

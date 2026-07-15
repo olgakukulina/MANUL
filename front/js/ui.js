@@ -81,7 +81,53 @@ export function updateStatsWithRoute(stationsCount, baseCount, routePoints, dist
         </span>
     `;
 }
+// Добавляем функцию для сохранения изменений в предприятиях
+export async function saveEnterpriseData(stationName, data) {
+    try {
+        const response = await fetch(`http://localhost:5000/api/enterprises/${stationName}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
 
+        const result = await response.json();
+        if (result.success) {
+            showToast(`Данные для "${stationName}" обновлены`);
+            return result.data;
+        } else {
+            showToast(`Ошибка: ${result.error}`);
+            return null;
+        }
+    } catch (error) {
+        console.error('Error saving enterprise data:', error);
+        showToast('Ошибка при сохранении данных');
+        return null;
+    }
+}
+
+// Функция для обновления вагонов на станции
+export async function updateStationWagons(stationName, type, count) {
+    try {
+        const response = await fetch(`http://localhost:5000/api/enterprises/${stationName}/wagons`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type, count })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            showToast(`Вагоны обновлены: ${type} = ${count}`);
+            return result.wagons;
+        } else {
+            showToast(`Ошибка: ${result.error}`);
+            return null;
+        }
+    } catch (error) {
+        console.error('Error updating wagons:', error);
+        showToast('Ошибка при обновлении вагонов');
+        return null;
+    }
+}
 export function showAppUI(user) {
     // Показываем UI для авторизованного пользователя
 }

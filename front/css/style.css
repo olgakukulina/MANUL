@@ -665,6 +665,104 @@ body { font-family: 'Segoe UI', Arial, sans-serif; background: #f5f5f5; }
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
+/* Панель прикрепления */
+#attachModePanel {
+    background: #e8f0fe;
+    border-bottom: 3px solid #3498db;
+    padding: 10px 20px;
+}
+
+#attachModePanel .attach-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+#attachModePanel .attach-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+#attachModePanel .attach-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+#attachModePanel .attach-actions button {
+    padding: 5px 15px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.2s;
+}
+
+#attachModePanel .attach-actions .confirm-btn {
+    background: #2ecc71;
+    color: white;
+}
+
+#attachModePanel .attach-actions .confirm-btn:hover {
+    background: #27ae60;
+}
+
+#attachModePanel .attach-actions .cancel-btn {
+    background: #e74c3c;
+    color: white;
+}
+
+#attachModePanel .attach-actions .cancel-btn:hover {
+    background: #c0392b;
+}
+
+#attachModePanel .attached-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 5px;
+}
+
+.attached-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #e8f0fe;
+    padding: 3px 8px 3px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    color: #2980b9;
+    border: 1px solid #3498db;
+}
+
+.attached-tag button {
+    background: none;
+    border: none;
+    color: #e74c3c;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 2px;
+    line-height: 1;
+}
+
+.attached-tag button:hover {
+    color: #c0392b;
+}
+
+/* Выбранные станции - синие, без анимации */
+.attach-selected {
+    /* убираем анимацию */
+}
+
+/* Станции, прикрепленные к другим опорным */
+.attached-other {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
 
 .distance-info {
     background: #f8f9fa;

@@ -1,18 +1,39 @@
 from flask import Blueprint, request, jsonify, current_app
 from auth import authenticate, register_user
-from admin import load_admin_data, set_station_flag
+from admin import load_admin_data, set_station_flag, attach_station_to_base, detach_station_from_base, \
+    get_attached_stations
 from graph_utils import haversine_distance, find_closest_node, dijkstra, reconstruct_path
 from data_loader import load_geojson
+import json
+import os
 
-# Создаем один блюпринт для всех маршрутов
 bp = Blueprint('api', __name__, url_prefix='/api')
+
+ENTERPRISES_FILE = '../front/data/enterprises.json'
+
+
+def load_enterprises():
+    """Загрузка данных о предприятиях"""
+    if os.path.exists(ENTERPRISES_FILE):
+        try:
+            with open(ENTERPRISES_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+
+def save_enterprises(data):
+    """Сохранение данных о предприятиях"""
+    os.makedirs(os.path.dirname(ENTERPRISES_FILE), exist_ok=True)
+    with open(ENTERPRISES_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 
 # ==================== АУТЕНТИФИКАЦИЯ ====================
 
 @bp.route('/auth/login', methods=['POST'])
 def login():
-    """Вход в систему"""
     data = request.get_json()
     login = data.get('login', '').strip()
     password = data.get('password', '').strip()
@@ -39,7 +60,6 @@ def login():
 
 @bp.route('/auth/register', methods=['POST'])
 def register():
-    """Регистрация нового пользователя"""
     data = request.get_json()
     login = data.get('login', '').strip()
     password = data.get('password', '').strip()
@@ -58,13 +78,11 @@ def register():
 
 @bp.route('/admin/data', methods=['GET'])
 def get_admin_data():
-    """Получение административных данных"""
     return jsonify(load_admin_data())
 
 
 @bp.route('/admin/flags', methods=['POST'])
 def set_flag():
-    """Установка флага опорной станции"""
     data = request.get_json()
     station_name = data.get('stationName')
     is_base = data.get('isBase', True)
@@ -76,11 +94,144 @@ def set_flag():
     return jsonify({'success': True, 'flags': flags})
 
 
+@bp.route('/admin/attach', methods=['POST'])
+def attach_station():
+    data = request.get_json()
+    base_station = data.get('baseStation')
+    station_to_attach = data.get('stationToAttach')
+
+    if not base_station or not station_to_attach:
+        return jsonify({'error': 'Не указаны станции'}), 400
+
+    result = attach_station_to_base(base_station, station_to_attach)
+
+    if 'error' in result:
+        return jsonify(result), 400
+
+    return jsonify(result)
+
+
+@bp.route('/admin/detach', methods=['POST'])
+def detach_station():
+    data = request.get_json()
+    base_station = data.get('baseStation')
+    station_to_detach = data.get('stationToDetach')
+
+    if not base_station or not station_to_detach:
+        return jsonify({'error': 'Не указаны станции'}), 400
+
+    result = detach_station_from_base(base_station, station_to_detach)
+    return jsonify(result)
+
+
+@bp.route('/admin/attached/<base_station>', methods=['GET'])
+def get_attached(base_station):
+    attached = get_attached_stations(base_station)
+    return jsonify({'base_station': base_station, 'attached': attached})
+
+
+# ==================== ПРЕДПРИЯТИЯ ====================
+
+@bp.route('/enterprises', methods=['GET'])
+def get_enterprises():
+    """Получение всех данных о предприятиях"""
+    return jsonify(load_enterprises())
+
+
+@bp.route('/enterprises/<station_name>', methods=['GET'])
+def get_enterprise(station_name):
+    """Получение данных о предприятии по названию станции"""
+    enterprises = load_enterprises()
+    if station_name not in enterprises:
+        return jsonify({'error': 'Предприятие не найдено'}), 404
+    return jsonify(enterprises[station_name])
+
+
+@bp.route('/enterprises/<station_name>', methods=['PUT'])
+def update_enterprise(station_name):
+    """Обновление данных о предприятии"""
+    data = request.get_json()
+    enterprises = load_enterprises()
+
+    if station_name not in enterprises:
+        return jsonify({'error': 'Предприятие не найдено'}), 404
+
+    # Обновляем только переданные поля
+    if 'wagons' in data:
+        enterprises[station_name]['wagons'] = data['wagons']
+    if 'loading_speed' in data:
+        enterprises[station_name]['loading_speed'] = data['loading_speed']
+    if 'technical_means' in data:
+        enterprises[station_name]['technical_means'] = data['technical_means']
+    if 'products' in data:
+        enterprises[station_name]['products'] = data['products']
+
+    save_enterprises(enterprises)
+    return jsonify({'success': True, 'data': enterprises[station_name]})
+
+
+@bp.route('/enterprises/<station_name>/wagons', methods=['PUT'])
+def update_wagons_data(station_name):
+    """Обновление данных о вагонах на станции"""
+    data = request.get_json()
+    enterprises = load_enterprises()
+
+    if station_name not in enterprises:
+        return jsonify({'error': 'Предприятие не найдено'}), 404
+
+    wagon_type = data.get('type')
+    count = data.get('count')
+
+    if wagon_type not in ['empty', 'loaded', 'ready_for_pickup']:
+        return jsonify({'error': 'Неверный тип вагонов'}), 400
+
+    if count is None or count < 0:
+        return jsonify({'error': 'Неверное количество вагонов'}), 400
+
+    enterprises[station_name]['wagons'][wagon_type] = count
+    save_enterprises(enterprises)
+
+    return jsonify({
+        'success': True,
+        'station': station_name,
+        'wagons': enterprises[station_name]['wagons']
+    })
+
+
+@bp.route('/enterprises/<station_name>/products/<product_name>', methods=['PUT'])
+def update_product_data(station_name, product_name):
+    """Обновление данных о продукте"""
+    data = request.get_json()
+    enterprises = load_enterprises()
+
+    if station_name not in enterprises:
+        return jsonify({'error': 'Предприятие не найдено'}), 404
+
+    if product_name not in enterprises[station_name]['products']:
+        return jsonify({'error': 'Продукт не найден'}), 404
+
+    warehouse = data.get('warehouse')
+    wagons = data.get('wagons')
+
+    if warehouse is not None:
+        enterprises[station_name]['products'][product_name]['warehouse'] = warehouse
+    if wagons is not None:
+        enterprises[station_name]['products'][product_name]['wagons'] = wagons
+
+    save_enterprises(enterprises)
+
+    return jsonify({
+        'success': True,
+        'station': station_name,
+        'product': product_name,
+        'data': enterprises[station_name]['products'][product_name]
+    })
+
+
 # ==================== СТАНЦИИ ====================
 
 @bp.route('/stations', methods=['GET'])
 def get_stations():
-    """Получение списка всех станций"""
     station_data = current_app.config['STATION_DATA']
     stations = []
 
@@ -101,7 +252,6 @@ def get_stations():
 
 @bp.route('/stations/search', methods=['GET'])
 def search_stations():
-    """Поиск станций по названию"""
     query = request.args.get('q', '').strip()
     if len(query) < 1:
         return jsonify([])
@@ -133,7 +283,6 @@ def search_stations():
 # ==================== ПОСТРОЕНИЕ МАРШРУТА ====================
 
 def find_station_by_name(name, station_data):
-    """Поиск станции по названию"""
     name_normalized = name.lower().strip()
 
     for feature in station_data.get('features', []):
@@ -170,7 +319,6 @@ def find_station_by_name(name, station_data):
 
 
 def build_route_sequential(points, graph, node_coords):
-    """Последовательное построение маршрута"""
     if len(points) < 2:
         return None, {"error": "Нужно минимум 2 точки"}
 
@@ -280,7 +428,6 @@ def build_route_sequential(points, graph, node_coords):
 
 @bp.route('/route', methods=['POST'])
 def calculate_route():
-    """Построение маршрута по точкам"""
     try:
         data = request.get_json()
     except:
@@ -364,7 +511,6 @@ def calculate_route():
 
 @bp.route('/status', methods=['GET'])
 def status():
-    """Проверка статуса сервера"""
     station_data = current_app.config['STATION_DATA']
     graph = current_app.config['GRAPH']
     return jsonify({
@@ -373,11 +519,11 @@ def status():
         'graph_nodes': len(graph)
     })
 
-# ВАГОНЫ
+
+# ==================== ВАГОНЫ ====================
 
 @bp.route('/admin/wagons/all', methods=['GET'])
 def get_all_wagons():
-    """Получение всех опорных станций с историей вагонов"""
     from admin import get_all_base_stations_with_wagons
 
     stations = get_all_base_stations_with_wagons()
@@ -386,7 +532,6 @@ def get_all_wagons():
 
 @bp.route('/admin/wagons/add', methods=['POST'])
 def add_wagons():
-    """Добавление данных о вагонах"""
     from admin import add_wagons_data
 
     data = request.get_json()

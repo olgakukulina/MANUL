@@ -1,0 +1,98 @@
+{
+  "Мураши": {
+    "wagons": {
+      "empty": 5,
+      "loaded": 8,
+      "ready_for_pickup": 3
+    },
+    "loading_speed": 12,
+    "technical_means": ["ГУАР-15М", "КК-20", "ДГКу"],
+    "products": {
+      "Щепа": { "warehouse": 15, "wagons": 4 },
+      "Пиломатериалы": { "warehouse": 8, "wagons": 2 },
+      "Древесный уголь": { "warehouse": 4, "wagons": 1 },
+      "Пеллеты": { "warehouse": 6, "wagons": 2 },
+      "Биотопливо": { "warehouse": 3, "wagons": 0 }
+    }
+  },
+  "Слободское": {
+    "wagons": {
+      "empty": 3,
+      "loaded": 12,
+      "ready_for_pickup": 5
+    },
+    "loading_speed": 8,
+    "technical_means": ["ГУАР-15М", "КК-20", "ДГКу"],
+    "products": {
+      "Щепа": { "warehouse": 20, "wagons": 6 },
+      "Пиломатериалы": { "warehouse": 10, "wagons": 3 },
+      "Древесный уголь": { "warehouse": 3, "wagons": 1 },
+      "Пеллеты": { "warehouse": 4, "wagons": 1 },
+      "Биотопливо": { "warehouse": 2, "wagons": 0 }
+    }
+  },
+  "Подосиновец": {
+    "wagons": {
+      "empty": 7,
+      "loaded": 5,
+      "ready_for_pickup": 2
+    },
+    "loading_speed": 10,
+    "technical_means": ["ГУАР-15М", "КК-20", "ДГКу"],
+    "products": {
+      "Щепа": { "warehouse": 12, "wagons": 3 },
+      "Пиломатериалы": { "warehouse": 6, "wagons": 2 },
+      "Древесный уголь": { "warehouse": 2, "wagons": 0 },
+      "Пеллеты": { "warehouse": 3, "wagons": 1 },
+      "Биотопливо": { "warehouse": 1, "wagons": 0 }
+    }
+  },
+  "Яр": {
+    "wagons": {
+      "empty": 4,
+      "loaded": 15,
+      "ready_for_pickup": 6
+    },
+    "loading_speed": 15,
+    "technical_means": ["ГУАР-15М", "КК-20", "ДГКу"],
+    "products": {
+      "Щепа": { "warehouse": 30, "wagons": 8 },
+      "Пиломатериалы": { "warehouse": 15, "wagons": 4 },
+      "Древесный уголь": { "warehouse": 5, "wagons": 2 },
+      "Пеллеты": { "warehouse": 7, "wagons": 2 },
+      "Биотопливо": { "warehouse": 4, "wagons": 1 }
+    }
+  },
+  "Белка-Слободская": {
+    "wagons": {
+      "empty": 2,
+      "loaded": 6,
+      "ready_for_pickup": 1
+    },
+    "loading_speed": 6,
+    "technical_means": ["ГУАР-15М", "КК-20", "ДГКу"],
+    "products": {
+      "Щепа": { "warehouse": 8, "wagons": 2 },
+      "Пиломатериалы": { "warehouse": 4, "wagons": 1 },
+      "Древесный уголь": { "warehouse": 15, "wagons": 0 },
+      "Пеллеты": { "warehouse": 2, "wagons": 0 },
+      "Биотопливо": { "warehouse": 1, "wagons": 0 }
+    }
+  },
+  "Стальная": {
+    "wagons": {
+      "empty": 6,
+      "loaded": 10,
+      "ready_for_pickup": 4
+    },
+    "loading_speed": 14,
+    "technical_means": ["ГУАР-15М", "КК-20", "ДГКу"],
+    "products": {
+      "Щепа": { "warehouse": 25, "wagons": 7 },
+      "Пиломатериалы": { "warehouse": 12, "wagons": 3 },
+      "Древесный уголь": { "warehouse": 4, "wagons": 1 },
+      "Пеллеты": { "warehouse": 5, "wagons": 2 },
+      "Биотопливо": { "warehouse": 2, "wagons": 0 }
+    }
+  }
+}
